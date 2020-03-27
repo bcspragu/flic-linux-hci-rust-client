@@ -1,5 +1,5 @@
 [package]
-name = "flic-rust"
+name = "flic"
 version = "0.1.0"
 authors = ["Brandon Sprague <brandon00sprague@gmail.com>"]
 edition = "2018"

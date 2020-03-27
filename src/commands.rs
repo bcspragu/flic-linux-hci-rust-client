@@ -1,66 +1,69 @@
 use std::fmt::{self, Formatter};
 
-pub trait Message {
+use crate::enums::LatencyMode;
+
+pub trait Command {
     fn marshal(&self) -> Vec<u8>;
+    fn opcode(&self) -> u8;
 }
 
-impl fmt::Debug for dyn Message {
+impl fmt::Debug for dyn Command {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
-        let v = self.marshal();
-        f.write_str(&hex::encode(&v))
+        let v = hex::encode(self.marshal());
+        f.write_fmt(format_args!(
+            "Opcode {}, Body {}, Length {}",
+            self.opcode(),
+            v,
+            v.chars().count()
+        ))
     }
 }
 
-#[derive(Copy, Clone)]
-#[allow(dead_code)] // Fine because it gets serialized, we use it implicitly.
-pub enum LatencyMode {
-    Normal = 0,
-    Low = 1,
-    High = 2,
-}
+pub struct GetInfo {}
 
-#[derive(Debug)]
-pub struct Command {
-    pub opcode: u8,
-    pub message: dyn Message,
-}
-
-pub struct GetInfoMsg {}
-
-impl Message for GetInfoMsg {
+impl Command for GetInfo {
     fn marshal(&self) -> Vec<u8> {
         vec![]
     }
-}
-
-pub struct CreateScannerMsg {
-    pub scan_id: u32,
-}
-
-impl Message for CreateScannerMsg {
-    fn marshal(&self) -> Vec<u8> {
-        self.scan_id.to_le_bytes().to_vec()
+    fn opcode(&self) -> u8 {
+        0
     }
 }
 
-pub struct RemoveScannerMsg {
+pub struct CreateScanner {
     pub scan_id: u32,
 }
 
-impl Message for RemoveScannerMsg {
+impl Command for CreateScanner {
     fn marshal(&self) -> Vec<u8> {
         self.scan_id.to_le_bytes().to_vec()
     }
+    fn opcode(&self) -> u8 {
+        1
+    }
 }
 
-pub struct CreateConnectionChannelMsg {
+pub struct RemoveScanner {
+    pub scan_id: u32,
+}
+
+impl Command for RemoveScanner {
+    fn marshal(&self) -> Vec<u8> {
+        self.scan_id.to_le_bytes().to_vec()
+    }
+    fn opcode(&self) -> u8 {
+        2
+    }
+}
+
+pub struct CreateConnectionChannel {
     pub conn_id: u32,
     pub bd_addr: [u8; 6],
     pub latency_mode: LatencyMode,
     pub auto_disconnect_time: u16,
 }
 
-impl Message for CreateConnectionChannelMsg {
+impl Command for CreateConnectionChannel {
     fn marshal(&self) -> Vec<u8> {
         let lm = self.latency_mode as u8;
         let mut v = self.conn_id.to_le_bytes().to_vec();
@@ -69,35 +72,44 @@ impl Message for CreateConnectionChannelMsg {
         v.append(&mut self.auto_disconnect_time.to_le_bytes().to_vec());
         v
     }
+    fn opcode(&self) -> u8 {
+        3
+    }
 }
 
-pub struct RemoveConnectionChannelMsg {
+pub struct RemoveConnectionChannel {
     pub conn_id: u32,
 }
 
-impl Message for RemoveConnectionChannelMsg {
+impl Command for RemoveConnectionChannel {
     fn marshal(&self) -> Vec<u8> {
         self.conn_id.to_le_bytes().to_vec()
     }
-}
-
-pub struct ForceDisconnectMsg {
-    pub bd_addr: [u8; 6],
-}
-
-impl Message for ForceDisconnectMsg {
-    fn marshal(&self) -> Vec<u8> {
-        self.bd_addr.to_vec()
+    fn opcode(&self) -> u8 {
+        4
     }
 }
 
-pub struct ChangeModeParametersMsg {
+pub struct ForceDisconnect {
+    pub bd_addr: [u8; 6],
+}
+
+impl Command for ForceDisconnect {
+    fn marshal(&self) -> Vec<u8> {
+        self.bd_addr.to_vec()
+    }
+    fn opcode(&self) -> u8 {
+        5
+    }
+}
+
+pub struct ChangeModeParameters {
     pub conn_id: u32,
     pub latency_mode: LatencyMode,
     pub auto_disconnect_time: u16,
 }
 
-impl Message for ChangeModeParametersMsg {
+impl Command for ChangeModeParameters {
     fn marshal(&self) -> Vec<u8> {
         let lm = self.latency_mode as u8;
         let mut v = self.conn_id.to_le_bytes().to_vec();
@@ -105,78 +117,102 @@ impl Message for ChangeModeParametersMsg {
         v.append(&mut self.auto_disconnect_time.to_le_bytes().to_vec());
         v
     }
+    fn opcode(&self) -> u8 {
+        6
+    }
 }
 
-pub struct PingMsg {
+pub struct Ping {
     pub ping_id: u32,
 }
 
-impl Message for PingMsg {
+impl Command for Ping {
     fn marshal(&self) -> Vec<u8> {
         self.ping_id.to_le_bytes().to_vec()
     }
+    fn opcode(&self) -> u8 {
+        7
+    }
 }
 
-pub struct GetButtonInfoMsg {
+pub struct GetButtonInfo {
     pub bd_addr: [u8; 6],
 }
 
-impl Message for GetButtonInfoMsg {
+impl Command for GetButtonInfo {
     fn marshal(&self) -> Vec<u8> {
         self.bd_addr.to_vec()
     }
-}
-
-pub struct CreateScanWizardMsg {
-    pub scan_wizard_id: u32,
-}
-
-impl Message for CreateScanWizardMsg {
-    fn marshal(&self) -> Vec<u8> {
-        self.scan_wizard_id.to_le_bytes().to_vec()
+    fn opcode(&self) -> u8 {
+        8
     }
 }
 
-pub struct CancelScanWizardMsg {
+pub struct CreateScanWizard {
     pub scan_wizard_id: u32,
 }
 
-impl Message for CancelScanWizardMsg {
+impl Command for CreateScanWizard {
     fn marshal(&self) -> Vec<u8> {
         self.scan_wizard_id.to_le_bytes().to_vec()
     }
+    fn opcode(&self) -> u8 {
+        9
+    }
 }
 
-pub struct DeleteButtonMsg {
+pub struct CancelScanWizard {
+    pub scan_wizard_id: u32,
+}
+
+impl Command for CancelScanWizard {
+    fn marshal(&self) -> Vec<u8> {
+        self.scan_wizard_id.to_le_bytes().to_vec()
+    }
+    fn opcode(&self) -> u8 {
+        10
+    }
+}
+
+pub struct DeleteButton {
     pub bd_addr: [u8; 6],
 }
 
-impl Message for DeleteButtonMsg {
+impl Command for DeleteButton {
     fn marshal(&self) -> Vec<u8> {
         self.bd_addr.to_vec()
     }
+    fn opcode(&self) -> u8 {
+        11
+    }
 }
 
-pub struct CreateBatteryStatusListenerMsg {
+pub struct CreateBatteryStatusListener {
     pub listener_id: u32,
     pub bd_addr: [u8; 6],
 }
 
-impl Message for CreateBatteryStatusListenerMsg {
+impl Command for CreateBatteryStatusListener {
     fn marshal(&self) -> Vec<u8> {
         let mut v = self.listener_id.to_le_bytes().to_vec();
         v.append(&mut self.bd_addr.to_vec());
         v
     }
+    fn opcode(&self) -> u8 {
+        12
+    }
 }
 
-pub struct RemoveBatteryStatusListenerMsg {
+pub struct RemoveBatteryStatusListener {
     pub listener_id: u32,
 }
 
-impl Message for RemoveBatteryStatusListenerMsg {
+impl Command for RemoveBatteryStatusListener {
     fn marshal(&self) -> Vec<u8> {
         self.listener_id.to_le_bytes().to_vec()
+    }
+    fn opcode(&self) -> u8 {
+        13
     }
 }
 
@@ -185,30 +221,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_info_msg_marshals_to_empty_vec() {
-        let msg = GetInfoMsg {};
+    fn get_info_marshals_to_empty_vec() {
+        let msg = GetInfo {};
         assert_eq!(msg.marshal(), vec![]);
     }
 
     #[test]
-    fn create_scanner_msg_marshal() {
-        let msg = CreateScannerMsg {
+    fn create_scanner_marshal() {
+        let msg = CreateScanner {
             scan_id: 0x12345678,
         };
         assert_eq!(msg.marshal(), vec![0x78, 0x56, 0x34, 0x12]);
     }
 
     #[test]
-    fn remove_scanner_msg_marshal() {
-        let msg = RemoveScannerMsg {
+    fn remove_scanner_marshal() {
+        let msg = RemoveScanner {
             scan_id: 0x12345678,
         };
         assert_eq!(msg.marshal(), vec![0x78, 0x56, 0x34, 0x12]);
     }
 
     #[test]
-    fn create_connection_channel_msg_marshal() {
-        let msg = CreateConnectionChannelMsg {
+    fn create_connection_channel_marshal() {
+        let msg = CreateConnectionChannel {
             conn_id: 0x12345678,
             bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
             latency_mode: LatencyMode::Normal,
@@ -226,24 +262,24 @@ mod tests {
     }
 
     #[test]
-    fn remove_connection_channel_msg_marshal() {
-        let msg = RemoveConnectionChannelMsg {
+    fn remove_connection_channel_marshal() {
+        let msg = RemoveConnectionChannel {
             conn_id: 0x12345678,
         };
         assert_eq!(msg.marshal(), vec![0x78, 0x56, 0x34, 0x12]);
     }
 
     #[test]
-    fn force_disconnect_msg_marshal() {
-        let msg = ForceDisconnectMsg {
+    fn force_disconnect_marshal() {
+        let msg = ForceDisconnect {
             bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
         };
         assert_eq!(msg.marshal(), vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
     }
 
     #[test]
-    fn change_mode_parameters_msg_marshal() {
-        let msg = ChangeModeParametersMsg {
+    fn change_mode_parameters_marshal() {
+        let msg = ChangeModeParameters {
             conn_id: 0x12345678,
             latency_mode: LatencyMode::Low,
             auto_disconnect_time: 0x4455,
@@ -260,47 +296,47 @@ mod tests {
 
     #[test]
     fn cmd_ping_marshal() {
-        let msg = PingMsg {
+        let msg = Ping {
             ping_id: 0x12345678,
         };
         assert_eq!(msg.marshal(), vec![0x78, 0x56, 0x34, 0x12]);
     }
 
     #[test]
-    fn get_button_info_msg_marshal() {
-        let msg = GetButtonInfoMsg {
+    fn get_button_info_marshal() {
+        let msg = GetButtonInfo {
             bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
         };
         assert_eq!(msg.marshal(), vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
     }
 
     #[test]
-    fn create_scan_wizard_msg_marshal() {
-        let msg = CreateScanWizardMsg {
+    fn create_scan_wizard_marshal() {
+        let msg = CreateScanWizard {
             scan_wizard_id: 0x12345678,
         };
         assert_eq!(msg.marshal(), vec![0x78, 0x56, 0x34, 0x12]);
     }
 
     #[test]
-    fn cancel_scan_wizard_msg_marshal() {
-        let msg = CancelScanWizardMsg {
+    fn cancel_scan_wizard_marshal() {
+        let msg = CancelScanWizard {
             scan_wizard_id: 0x12345678,
         };
         assert_eq!(msg.marshal(), vec![0x78, 0x56, 0x34, 0x12]);
     }
 
     #[test]
-    fn delete_button_msg_marshal() {
-        let msg = DeleteButtonMsg {
+    fn delete_button_marshal() {
+        let msg = DeleteButton {
             bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
         };
         assert_eq!(msg.marshal(), vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
     }
 
     #[test]
-    fn create_battery_status_listener_msg_marshal() {
-        let msg = CreateBatteryStatusListenerMsg {
+    fn create_battery_status_listener_marshal() {
+        let msg = CreateBatteryStatusListener {
             listener_id: 0x12345678,
             bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
         };
@@ -314,8 +350,8 @@ mod tests {
     }
 
     #[test]
-    fn remove_battery_status_listener_msg_marshal() {
-        let msg = RemoveBatteryStatusListenerMsg {
+    fn remove_battery_status_listener_marshal() {
+        let msg = RemoveBatteryStatusListener {
             listener_id: 0x12345678,
         };
         assert_eq!(msg.marshal(), vec![0x78, 0x56, 0x34, 0x12]);
