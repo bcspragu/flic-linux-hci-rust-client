@@ -11,12 +11,12 @@ comments are welcome!
 
 There's still lots left to do:
 
-- Probably replace lib.rs entirely, or at least figure out how to actually send
-  messages.
-- Write the marshal method for Command which includes the op code, and tests
+x Figure out how to actually send messages.
+x Marshal the full command (including opcode and length header) and send it over the wire
 x Implement [the rest of the
   API](https://github.com/50ButtonsEach/fliclib-linux-hci/blob/master/ProtocolDocumentation.md)
 - Actually try it out (use it in a binary)
+- Handle event unmarshalling
 x Document the commands and events and stuff with the documentation from the
   protocol, so that the rust docs look good
   - Still need to do the commands
