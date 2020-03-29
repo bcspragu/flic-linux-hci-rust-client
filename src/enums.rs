@@ -1,4 +1,6 @@
-#[derive(Copy, Clone)]
+extern crate num;
+
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum CreateConnectionChannelError {
     // There were space in the bluetooth controller's white list to accept a physical pending connection for this button
     NoError = 0,
@@ -7,7 +9,7 @@ pub enum CreateConnectionChannelError {
     MaxPendingConnectionsReached = 1,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum ConnectionStatus {
     // Not currently an established connection, but will connect as soon as the button is pressed and it is in range as long as the connection channel hasn't been removed (and unless maximum number of concurrent connections has been reached or the bluetooth controller has been detached).
     Disconnected = 0,
@@ -19,7 +21,7 @@ pub enum ConnectionStatus {
     Ready = 2,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum DisconnectReason {
     // Unknown reason
     Unspecified = 0,
@@ -34,7 +36,7 @@ pub enum DisconnectReason {
     BondingKeysMismatch = 3,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum RemovedReason {
     // The connection channel was removed by this client.
     RemovedByThisClient = 0,
@@ -77,7 +79,7 @@ pub enum RemovedReason {
     DeletedFromButton = 11,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum ClickType {
     // The button was pressed.
     ButtonDown = 0,
@@ -102,7 +104,7 @@ pub enum ClickType {
 // bluetooth controller, or to use a custom random static address. This custom address is a good
 // idea if you want to be able to use your database with bonding information with a different
 // bluetooth controller.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum BdAddrType {
     PublicBdAddrType = 0,
     RandomBdAddrType = 1,
@@ -114,7 +116,7 @@ pub enum BdAddrType {
 // However lower modes will have higher battery usage if the connection is unstable. Lower modes
 // also consumes more power for the client, which is normally not a problem since most computers
 // run on wall power or have large batteries.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum LatencyMode {
     // Up to 100 ms latency.
     Normal = 0,
@@ -128,7 +130,7 @@ pub enum LatencyMode {
 
 // The server software detects when the bluetooth controller is removed or is made unavailable. It
 // will then repeatedly retry to re-established a connection to the same bluetooth controller.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum BluetoothControllerState {
     // The server software has lost the HCI socket to the bluetooth controller and is trying to reconnect.
     Detached = 0,
@@ -141,7 +143,7 @@ pub enum BluetoothControllerState {
 }
 
 //The result of a scan wizard. When the scan wizard is completed it will stop and return a result.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromPrimitive)]
 pub enum ScanWizardResult {
     // Indicates that a button was successfully paired and verified. You may now create a connection channel to that button.
     WizardSuccess = 0,

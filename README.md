@@ -16,7 +16,7 @@ x Marshal the full command (including opcode and length header) and send it over
 x Implement [the rest of the
   API](https://github.com/50ButtonsEach/fliclib-linux-hci/blob/master/ProtocolDocumentation.md)
 - Actually try it out (use it in a binary)
-- Handle event unmarshalling
+- Handle unmarshalling for the remaining few events
 x Document the commands and events and stuff with the documentation from the
   protocol, so that the rust docs look good
   - Still need to do the commands

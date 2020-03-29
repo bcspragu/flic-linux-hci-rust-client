@@ -1,4 +1,6 @@
-use std::io::{Error, ErrorKind};
+#[macro_use]
+extern crate num_derive;
+
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
@@ -33,7 +35,7 @@ impl Client {
         Ok(())
     }
 
-    pub fn next_event(&mut self) -> std::io::Result<events::Event> {
+    pub fn next_event(&mut self) -> events::Result<events::Event> {
         let mut header = [0 as u8; 3];
         self.stream
             .read_exact(&mut header)
@@ -42,7 +44,7 @@ impl Client {
         let opcode = header[2];
 
         // Minus one for the opcode
-        let mut body = vec![0u8; len as usize];
+        let mut body = vec![0u8; (len - 1) as usize];
         self.stream
             .read_exact(&mut body)
             .expect("failed to read body");
@@ -67,10 +69,7 @@ impl Client {
             19 => events::unmarshal_button_deleted,
             20 => events::unmarshal_battery_status,
             _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidInput,
-                    format!("unknown opcode {}", opcode),
-                ));
+                return Err(events::UnmarshalError::BadOpcode(opcode));
             }
         };
 
