@@ -5,15 +5,80 @@ use crate::enums::*;
 use std::error;
 use std::fmt;
 use std::string;
+use num::FromPrimitive;
 
 pub type Result<T> = std::result::Result<T, UnmarshalError>;
 
+#[derive(FromPrimitive, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Opcode {
+    AdvertisementPacket = 0,
+    CreateConnectionChannelResponse = 1,
+    ConnectionStatusChanged = 2,
+    ConnectionChannelRemoved = 3,
+    ButtonUpOrDown = 4,
+    ButtonClickOrHold = 5,
+    ButtonSingleOrDoubleClick = 6,
+    ButtonSingleOrDoubleClickOrHold = 7,
+    NewVerifiedButton = 8,
+    GetInfoResponse = 9,
+    NoSpaceForNewConnection = 10,
+    GotSpaceForNewConnection = 11,
+    BluetoothControllerStateChange = 12,
+    PingResponse = 13,
+    GetButtonInfoResponse = 14,
+    ScanWizardFoundPrivateButton = 15,
+    ScanWizardFoundPublicButton = 16,
+    ScanWizardButtonConnected = 17,
+    ScanWizardCompleted = 18,
+    ButtonDeleted = 19,
+    BatteryStatus = 20,
+}
+
+pub fn unmarshal(opcode: u8, data: &[u8]) -> Result<(Event, Opcode)> {
+    let opcode = match FromPrimitive::from_u8(opcode) {
+        Some(opcode) => opcode,
+        None => return Err(UnmarshalError::BadOpcode(opcode)),
+    };
+
+    let unmarshal_event = match opcode {
+            Opcode::AdvertisementPacket => unmarshal_advertisement_packet,
+            Opcode::CreateConnectionChannelResponse => unmarshal_create_connection_channel_response,
+            Opcode::ConnectionStatusChanged => unmarshal_connection_status_changed,
+            Opcode::ConnectionChannelRemoved => unmarshal_connection_channel_removed,
+            Opcode::ButtonUpOrDown => unmarshal_button_up_or_down,
+            Opcode::ButtonClickOrHold => unmarshal_button_click_or_hold,
+            Opcode::ButtonSingleOrDoubleClick => unmarshal_button_single_or_double_click,
+            Opcode::ButtonSingleOrDoubleClickOrHold => unmarshal_button_single_or_double_click_or_hold,
+            Opcode::NewVerifiedButton => unmarshal_new_verified_button,
+            Opcode::GetInfoResponse => unmarshal_get_info_response,
+            Opcode::NoSpaceForNewConnection => unmarshal_no_space_for_new_connection,
+            Opcode::GotSpaceForNewConnection => unmarshal_got_space_for_new_connection,
+            Opcode::BluetoothControllerStateChange => unmarshal_bluetooth_controller_state_change,
+            Opcode::PingResponse => unmarshal_ping_response,
+            Opcode::GetButtonInfoResponse => unmarshal_get_button_info_response,
+            Opcode::ScanWizardFoundPrivateButton => unmarshal_scan_wizard_found_private_button,
+            Opcode::ScanWizardFoundPublicButton => unmarshal_scan_wizard_found_public_button,
+            Opcode::ScanWizardButtonConnected => unmarshal_scan_wizard_button_connected,
+            Opcode::ScanWizardCompleted => unmarshal_scan_wizard_completed,
+            Opcode::ButtonDeleted => unmarshal_button_deleted,
+            Opcode::BatteryStatus => unmarshal_battery_status,
+        };
+
+    let evt = unmarshal_event(data)?;
+
+    Ok((evt, opcode))
+}
+
+#[derive(Debug)]
 pub enum Event {
     AdvertisementPacket(AdvertisementPacket),
     CreateConnectionChannelResponse(CreateConnectionChannelResponse),
     ConnectionStatusChanged(ConnectionStatusChanged),
     ConnectionChannelRemoved(ConnectionChannelRemoved),
-    ButtonEvent(ButtonEvent),
+    ButtonUpOrDown(ButtonUpOrDown),
+    ButtonClickOrHold(ButtonClickOrHold),
+    ButtonSingleOrDoubleClick(ButtonSingleOrDoubleClick),
+    ButtonSingleOrDoubleClickOrHold(ButtonSingleOrDoubleClickOrHold),
     NewVerifiedButton(NewVerifiedButton),
     GetInfoResponse(GetInfoResponse),
     NoSpaceForNewConnection(NoSpaceForNewConnection),
@@ -31,16 +96,19 @@ pub enum Event {
 
 #[derive(Debug, Clone)]
 pub enum UnmarshalError {
+    Generic(&'static str),
     BadLength(usize, usize),
     BadLengthAtLeast(usize, usize),
     BadString(string::FromUtf8Error),
     BadEnum(u8, &'static str),
     BadOpcode(u8),
+    BadClickType(ClickType, &'static str),
 }
 
 impl fmt::Display for UnmarshalError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            UnmarshalError::Generic(err) => write!(f, "{}", err),
             UnmarshalError::BadLength(got_len, want_len) => {
                 write!(f, "body length {}, expected {}", got_len, want_len)
             },
@@ -51,7 +119,8 @@ impl fmt::Display for UnmarshalError {
             UnmarshalError::BadEnum(field, val) => {
                 write!(f, "enum value {} is invalid for enum {}", field, val)
             },
-            UnmarshalError::BadOpcode(opcode) => write!(f, "unknown opcode {}", opcode),
+            UnmarshalError::BadOpcode(opcode) => write!(f, "unknown opcode {:?}", opcode),
+            UnmarshalError::BadClickType(click_type, btn_evt) => write!(f, "click type {:?} not valid for {}", click_type, btn_evt),
         }
     }
 }
@@ -156,6 +225,7 @@ fn load_uuid(data: &[u8], o: usize) -> [u8; 16] {
 // advertisement packet arriving that comes from a Flic button. Usually the Flic button sends out
 // many advertisement packets, with higher frequency if it was lately pressed.
 // Opcode: 0
+#[derive(Debug)]
 pub struct AdvertisementPacket {
     scan_id: u32, // The scan id corresponding to the scanner which this advertisement packet belongs to.
     bd_addr: [u8; 6], // The bluetooth address of this Flic button. Use it to establish a connection chnanel.
@@ -171,7 +241,7 @@ pub struct AdvertisementPacket {
     already_connected_to_other_device: bool, // This Flic 2 button is already connected to another device.
 }
 
-pub fn unmarshal_advertisement_packet(data: &[u8]) -> Result<Event> {
+fn unmarshal_advertisement_packet(data: &[u8]) -> Result<Event> {
     check_sz(data, 32)?;
 
     let name_len = data[10] as usize;
@@ -194,26 +264,25 @@ pub fn unmarshal_advertisement_packet(data: &[u8]) -> Result<Event> {
 // This event will always be sent when a CmdCreateConnectionChannel is received, containing the
 // status of the request.
 // Opcode: 1
+#[derive(Debug)]
 pub struct CreateConnectionChannelResponse {
     conn_id: u32,                        // Connection channel identifier.
     error: CreateConnectionChannelError, // Whether the request succeeded or not.
     connection_status: ConnectionStatus, // The current connection status to this button. This might be a non-disconnected status if there are already other active connection channels to this button.
 }
 
-pub fn unmarshal_create_connection_channel_response(data: &[u8]) -> Result<Event> {
+fn unmarshal_create_connection_channel_response(data: &[u8]) -> Result<Event> {
     check_sz(data, 6)?;
 
-    let error = match num::FromPrimitive::from_u8(data[4]) {
+    let error = match FromPrimitive::from_u8(data[4]) {
         Some(err) => err,
-        None => {
-            return Err(UnmarshalError::BadEnum(
+        None => return Err(UnmarshalError::BadEnum(
                 data[4],
                 "CreateConnectionChannelError",
-            ))
-        }
+            )),
     };
 
-    let connection_status = match num::FromPrimitive::from_u8(data[5]) {
+    let connection_status = match FromPrimitive::from_u8(data[5]) {
         Some(conn_status) => conn_status,
         None => return Err(UnmarshalError::BadEnum(data[5], "ConnectionStatus")),
     };
@@ -229,21 +298,22 @@ pub fn unmarshal_create_connection_channel_response(data: &[u8]) -> Result<Event
 
 // This event is sent when the connection status is changed.
 // Opcode: 2
+#[derive(Debug)]
 pub struct ConnectionStatusChanged {
     conn_id: u32,                        // Connection channel identifier.
     connection_status: ConnectionStatus, // New connection status.
     disconnect_reason: DisconnectReason, // If the connection status is Disconnected, this contains the reason. Otherwise this parameter is considered invalid.
 }
 
-pub fn unmarshal_connection_status_changed(data: &[u8]) -> Result<Event> {
+fn unmarshal_connection_status_changed(data: &[u8]) -> Result<Event> {
     check_sz(data, 6)?;
 
-    let connection_status = match num::FromPrimitive::from_u8(data[4]) {
+    let connection_status = match FromPrimitive::from_u8(data[4]) {
         Some(conn_status) => conn_status,
         None => return Err(UnmarshalError::BadEnum(data[4], "ConnectionStatus")),
     };
 
-    let disconnect_reason = match num::FromPrimitive::from_u8(data[5]) {
+    let disconnect_reason = match FromPrimitive::from_u8(data[5]) {
         Some(disconn_reason) => disconn_reason,
         None => return Err(UnmarshalError::BadEnum(data[5], "DisconnectionReason")),
     };
@@ -263,15 +333,16 @@ pub fn unmarshal_connection_status_changed(data: &[u8]) -> Result<Event> {
 // EvtCreateConnectionChannelResponse with an error different than NoError, the connection channel
 // have never been considered created, and this event will thus never be sent afterwards.
 // Opcode: 3
+#[derive(Debug)]
 pub struct ConnectionChannelRemoved {
     conn_id: u32,                  // Connection channel identifier.
     removed_reason: RemovedReason, // Reason for this connection channel being removed.
 }
 
-pub fn unmarshal_connection_channel_removed(data: &[u8]) -> Result<Event> {
+fn unmarshal_connection_channel_removed(data: &[u8]) -> Result<Event> {
     check_sz(data, 5)?;
 
-    let removed_reason = match num::FromPrimitive::from_u8(data[5]) {
+    let removed_reason = match FromPrimitive::from_u8(data[5]) {
         Some(rem_reason) => rem_reason,
         None => return Err(UnmarshalError::BadEnum(data[5], "RemoveReason")),
     };
@@ -287,46 +358,148 @@ pub fn unmarshal_connection_channel_removed(data: &[u8]) -> Result<Event> {
 // There are four types of button events. For each type of event, there is a different set of
 // possible ClickTypes. Normally one application would handle one type of events and discard the
 // others, depending on how many different triggers you would like the Flic button to be used for.
-// The following event types are defined:
-// Possible ClickTypes are ButtonUp and ButtonDown. Used to simply know when the button was pressed or released.
-// Possible ClickTypes are ButtonClick and ButtonHold. Used if you want to distinguish between click and hold.
-// Possible ClickTypes are ButtonSingleClick and ButtonDoubleClick. Used if you want to distinguish between a single click and a double click.
-// Possible ClickTypes are ButtonSingleClick, ButtonDoubleClick and ButtonHold. Used if you want to distinguish between a single click, a double click and a hold.
-// Opcode: 4, 5, 6 or 7 for the different types of event, in the same order as above.
-pub struct ButtonEvent {
+// No opcode because this isn't actually an event.
+struct BaseButtonEvent {
     conn_id: u32,          // Connection channel identifier.
     click_type: ClickType, // The click type. For each opcode, there are different possible values.
     was_queued: bool, // If this button event happened during the button was disconnected or not.
     time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
 }
 
-pub fn unmarshal_button_event(data: &[u8]) -> Result<Event> {
+fn unmarshal_base_button_event(data: &[u8]) -> Result<BaseButtonEvent> {
     check_sz(data, 10)?;
 
-    let click_type = match num::FromPrimitive::from_u8(data[5]) {
+    let click_type = match FromPrimitive::from_u8(data[5]) {
         Some(click_type) => click_type,
         None => return Err(UnmarshalError::BadEnum(data[5], "ClickType")),
     };
 
-    let evt = ButtonEvent {
+    Ok(BaseButtonEvent {
         conn_id: load_u32(data, 0),
         click_type,
         was_queued: load_bool(data, 5),
         time_diff: load_u32(data, 6),
+    })
+}
+
+// Possible ClickTypes are ButtonUp and ButtonDown. Used to simply know when the button was pressed
+// or released.
+// Opcode: 4
+#[derive(Debug)]
+pub struct ButtonUpOrDown {
+    conn_id: u32,          // Connection channel identifier.
+    click_type: ClickType, // The click type. For each opcode, there are different possible values.
+    was_queued: bool, // If this button event happened during the button was disconnected or not.
+    time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+}
+
+fn unmarshal_button_up_or_down(data: &[u8]) -> Result<Event> {
+    let base_event = unmarshal_base_button_event(data)?;
+
+    match base_event.click_type {
+        ClickType::ButtonUp | ClickType::ButtonDown => (), // This is fine
+        _ => return Err(UnmarshalError::BadClickType(base_event.click_type, "ButtonUpOrDown")),
     };
 
-    Ok(Event::ButtonEvent(evt))
+    Ok(Event::ButtonUpOrDown(ButtonUpOrDown{
+        conn_id: base_event.conn_id,
+        click_type: base_event.click_type,
+        was_queued: base_event.was_queued,
+        time_diff: base_event.time_diff,
+    }))
+}
+
+// Possible ClickTypes are ButtonClick and ButtonHold. Used if you want to distinguish between
+// click and hold.
+// Opcode: 5
+#[derive(Debug)]
+pub struct ButtonClickOrHold {
+    conn_id: u32,          // Connection channel identifier.
+    click_type: ClickType, // The click type. For each opcode, there are different possible values.
+    was_queued: bool, // If this button event happened during the button was disconnected or not.
+    time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+}
+
+fn unmarshal_button_click_or_hold(data: &[u8]) -> Result<Event> {
+    let base_event = unmarshal_base_button_event(data)?;
+
+    match base_event.click_type {
+        ClickType::ButtonClick | ClickType::ButtonHold => (), // This is fine
+        _ => return Err(UnmarshalError::BadClickType(base_event.click_type, "ButtonClickOrHold")),
+    };
+
+    Ok(Event::ButtonClickOrHold(ButtonClickOrHold{
+        conn_id: base_event.conn_id,
+        click_type: base_event.click_type,
+        was_queued: base_event.was_queued,
+        time_diff: base_event.time_diff,
+    }))
+}
+
+// Possible ClickTypes are ButtonSingleClick and ButtonDoubleClick. Used if you want to distinguish
+// between a single click and a double click.
+// Opcode: 6
+#[derive(Debug)]
+pub struct ButtonSingleOrDoubleClick {
+    conn_id: u32,          // Connection channel identifier.
+    click_type: ClickType, // The click type. For each opcode, there are different possible values.
+    was_queued: bool, // If this button event happened during the button was disconnected or not.
+    time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+}
+
+fn unmarshal_button_single_or_double_click(data: &[u8]) -> Result<Event> {
+    let base_event = unmarshal_base_button_event(data)?;
+    
+    match base_event.click_type {
+        ClickType::ButtonSingleClick | ClickType::ButtonDoubleClick => (), // This is fine
+        _ => return Err(UnmarshalError::BadClickType(base_event.click_type, "ButtonSingleOrDoubleClick")),
+    };
+
+    Ok(Event::ButtonSingleOrDoubleClick(ButtonSingleOrDoubleClick{
+        conn_id: base_event.conn_id,
+        click_type: base_event.click_type,
+        was_queued: base_event.was_queued,
+        time_diff: base_event.time_diff,
+    }))
+}
+
+// Possible ClickTypes are ButtonSingleClick, ButtonDoubleClick and ButtonHold. Used if you want to
+// distinguish between a single click, a double click and a hold.
+// Opcode: 7
+#[derive(Debug)]
+pub struct ButtonSingleOrDoubleClickOrHold {
+    conn_id: u32,          // Connection channel identifier.
+    click_type: ClickType, // The click type. For each opcode, there are different possible values.
+    was_queued: bool, // If this button event happened during the button was disconnected or not.
+    time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+}
+
+fn unmarshal_button_single_or_double_click_or_hold(data: &[u8]) -> Result<Event> {
+    let base_event = unmarshal_base_button_event(data)?;
+    
+    match base_event.click_type {
+        ClickType::ButtonSingleClick | ClickType::ButtonDoubleClick | ClickType::ButtonHold => (), // This is fine
+        _ => return Err(UnmarshalError::BadClickType(base_event.click_type, "ButtonSingleOrDoubleClickOrHold")),
+    };
+
+    Ok(Event::ButtonSingleOrDoubleClickOrHold(ButtonSingleOrDoubleClickOrHold{
+        conn_id: base_event.conn_id,
+        click_type: base_event.click_type,
+        was_queued: base_event.was_queued,
+        time_diff: base_event.time_diff,
+    }))
 }
 
 // This is sent to all clients when a button has been successfully verified that was not verified
 // before (for the current bluetooth controller bluetooth address). Note: The
 // EvtConnectionStatusChanged with connection_status = Ready will be sent just before this event.
 // Opcode: 8
+#[derive(Debug)]
 pub struct NewVerifiedButton {
     bd_addr: [u8; 6], // The bluetooth address for the verified Flic button.
 }
 
-pub fn unmarshal_new_verified_button(data: &[u8]) -> Result<Event> {
+fn unmarshal_new_verified_button(data: &[u8]) -> Result<Event> {
     check_sz(data, 6)?;
 
     let evt = NewVerifiedButton {
@@ -338,6 +511,7 @@ pub fn unmarshal_new_verified_button(data: &[u8]) -> Result<Event> {
 
 // This is sent as a response to a CmdGetInfo.
 // Opcode: 9
+#[derive(Debug)]
 pub struct GetInfoResponse {
     bluetooth_controller_state: BluetoothControllerState, // Current state of the HCI connection to the bluetooth controller.
     my_bd_addr: [u8; 6], // Current bluetooth address / identity of this device.
@@ -350,7 +524,7 @@ pub struct GetInfoResponse {
     bd_addr_of_verified_buttons: Vec<[u8; 6]>, // An array of all the verified buttons.
 }
 
-pub fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
+fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
     // We can't use check_sz off the bat for this one since it's dynamically sized. So first, we
     // check it's at least large enough to include the number of entries in its repeated field.
     check_sz_at_least(data, 15)?;
@@ -360,12 +534,12 @@ pub fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
     // Now we can see if the total size makes sense.
     check_sz(data, 15 + nb_verified_buttons * 6)?;
 
-    let bluetooth_controller_state = match num::FromPrimitive::from_u8(data[0]) {
+    let bluetooth_controller_state = match FromPrimitive::from_u8(data[0]) {
         Some(status) => status,
         None => return Err(UnmarshalError::BadEnum(data[0], "BluetoothControllerState")),
     };
 
-    let my_bd_addr_type = match num::FromPrimitive::from_u8(data[7]) {
+    let my_bd_addr_type = match FromPrimitive::from_u8(data[7]) {
         Some(addr_type) => addr_type,
         None => return Err(UnmarshalError::BadEnum(data[7], "BdAddrType")),
     };
@@ -403,11 +577,12 @@ pub fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
 // when the maximum number of connections are reached and an attempt is made to connect yet another
 // button.
 // Opcode: 10
+#[derive(Debug)]
 pub struct NoSpaceForNewConnection {
     max_concurrently_connected_buttons: u8, // Same as in EvtGetInfoResponse.
 }
 
-pub fn unmarshal_no_space_for_new_connection(data: &[u8]) -> Result<Event> {
+fn unmarshal_no_space_for_new_connection(data: &[u8]) -> Result<Event> {
     check_sz(data, 1)?;
 
     let evt = NoSpaceForNewConnection {
@@ -422,11 +597,12 @@ pub fn unmarshal_no_space_for_new_connection(data: &[u8]) -> Result<Event> {
 // automatically be made to devices having a connection channel open but has not yet established a
 // connection.
 // Opcode: 11
+#[derive(Debug)]
 pub struct GotSpaceForNewConnection {
     max_concurrently_connected_buttons: u8, // Same as in EvtGetInfoResponse.
 }
 
-pub fn unmarshal_got_space_for_new_connection(data: &[u8]) -> Result<Event> {
+fn unmarshal_got_space_for_new_connection(data: &[u8]) -> Result<Event> {
     check_sz(data, 1)?;
 
     let evt = GotSpaceForNewConnection {
@@ -446,14 +622,15 @@ pub fn unmarshal_got_space_for_new_connection(data: &[u8]) -> Result<Event> {
 // event, the state will transition directly from Attached to Resetting and if it was able to
 // reset, back to Attached.
 // Opcode: 12
+#[derive(Debug)]
 pub struct BluetoothControllerStateChange {
     state: BluetoothControllerState, // The new state.
 }
 
-pub fn unmarshal_bluetooth_controller_state_change(data: &[u8]) -> Result<Event> {
+fn unmarshal_bluetooth_controller_state_change(data: &[u8]) -> Result<Event> {
     check_sz(data, 1)?;
 
-    let state = match num::FromPrimitive::from_u8(data[0]) {
+    let state = match FromPrimitive::from_u8(data[0]) {
         Some(state) => state,
         None => return Err(UnmarshalError::BadEnum(data[0], "BluetoothControllerState")),
     };
@@ -465,11 +642,12 @@ pub fn unmarshal_bluetooth_controller_state_change(data: &[u8]) -> Result<Event>
 
 // Sent in response to a CmdPing
 // Opcode: 13
+#[derive(Debug)]
 pub struct PingResponse {
     ping_id: u32, // Same ping id as sent in the CmdPing.
 }
 
-pub fn unmarshal_ping_response(data: &[u8]) -> Result<Event> {
+fn unmarshal_ping_response(data: &[u8]) -> Result<Event> {
     check_sz(data, 4)?;
 
     let evt = PingResponse {
@@ -482,6 +660,7 @@ pub fn unmarshal_ping_response(data: &[u8]) -> Result<Event> {
 // Sent in return to a CmdGetButtonInfo. If the button was not verified, all parameters except
 // bd_addr will contain zero-bytes.
 // Opcode: 14
+#[derive(Debug)]
 pub struct GetButtonInfoResponse {
     bd_addr: [u8; 6], // The bluetooth device address of the request.
     uuid: [u8; 16],   // The uuid of the button. Each button has a unique 128-bit identifier.
@@ -497,7 +676,7 @@ pub struct GetButtonInfoResponse {
     serial_number: String,
 }
 
-pub fn unmarshal_get_button_info_response(data: &[u8]) -> Result<Event> {
+fn unmarshal_get_button_info_response(data: &[u8]) -> Result<Event> {
     check_sz(data, 56)?;
 
     let color_len = data[22] as usize;
@@ -517,11 +696,12 @@ pub fn unmarshal_get_button_info_response(data: &[u8]) -> Result<Event> {
 // Sent once if a previously not verified private button is found during the scan. If this is
 // received, tell the user to hold the button down for 7 seconds.
 // Opcode: 15
+#[derive(Debug)]
 pub struct ScanWizardFoundPrivateButton {
     scan_wizard_id: u32, // Scan wizard id.
 }
 
-pub fn unmarshal_scan_wizard_found_private_button(data: &[u8]) -> Result<Event> {
+fn unmarshal_scan_wizard_found_private_button(data: &[u8]) -> Result<Event> {
     check_sz(data, 4)?;
 
     let evt = ScanWizardFoundPrivateButton {
@@ -534,6 +714,7 @@ pub fn unmarshal_scan_wizard_found_private_button(data: &[u8]) -> Result<Event> 
 // Sent once if a previously not verified public button is found during scan. Now the scan wizard
 // stops scanning internally and instead initiates a connection to this button.
 // Opcode: 16
+#[derive(Debug)]
 pub struct ScanWizardFoundPublicButton {
     scan_wizard_id: u32, // Scan wizard id.
     bd_addr: [u8; 6],    // The bluetooth address of the Flic button that was found.
@@ -544,7 +725,7 @@ pub struct ScanWizardFoundPublicButton {
     name: String,
 }
 
-pub fn unmarshal_scan_wizard_found_public_button(data: &[u8]) -> Result<Event> {
+fn unmarshal_scan_wizard_found_public_button(data: &[u8]) -> Result<Event> {
     check_sz(data, 27)?;
 
     let name_len = data[10] as usize;
@@ -561,11 +742,12 @@ pub fn unmarshal_scan_wizard_found_public_button(data: &[u8]) -> Result<Event> {
 // Sent when the found button connects for the first time. Now the verification and pairing process
 // will begin.
 // Opcode: 17
+#[derive(Debug)]
 pub struct ScanWizardButtonConnected {
     scan_wizard_id: u32, // Scan wizard id.
 }
 
-pub fn unmarshal_scan_wizard_button_connected(data: &[u8]) -> Result<Event> {
+fn unmarshal_scan_wizard_button_connected(data: &[u8]) -> Result<Event> {
     check_sz(data, 4)?;
 
     let evt = ScanWizardButtonConnected {
@@ -578,15 +760,16 @@ pub fn unmarshal_scan_wizard_button_connected(data: &[u8]) -> Result<Event> {
 // Sent when the scan wizard has completed. See ScanWizardResult documentation for more
 // information.
 // Opcode: 18
+#[derive(Debug)]
 pub struct ScanWizardCompleted {
     scan_wizard_id: u32,      // Scan wizard id.
     result: ScanWizardResult, // Result of the scan wizard.
 }
 
-pub fn unmarshal_scan_wizard_completed(data: &[u8]) -> Result<Event> {
+fn unmarshal_scan_wizard_completed(data: &[u8]) -> Result<Event> {
     check_sz(data, 5)?;
 
-    let result = match num::FromPrimitive::from_u8(data[4]) {
+    let result = match FromPrimitive::from_u8(data[4]) {
         Some(res) => res,
         None => return Err(UnmarshalError::BadEnum(data[4], "ScanWizardResult")),
     };
@@ -602,12 +785,13 @@ pub fn unmarshal_scan_wizard_completed(data: &[u8]) -> Result<Event> {
 // Sent as a response to CmdDeleteButton or when a verified button has been deleted from the
 // database.
 // Opcode: 19
+#[derive(Debug)]
 pub struct ButtonDeleted {
     bd_addr: [u8; 6],             // The bluetooth device address of the deleted button.
     deleted_by_this_client: bool, // Whether or not the client that initiated the deletion was the current client.
 }
 
-pub fn unmarshal_button_deleted(data: &[u8]) -> Result<Event> {
+fn unmarshal_button_deleted(data: &[u8]) -> Result<Event> {
     check_sz(data, 7)?;
 
     let evt = ButtonDeleted {
@@ -621,6 +805,7 @@ pub fn unmarshal_button_deleted(data: &[u8]) -> Result<Event> {
 // Sent to a battery status listener created by CmdCreateBatteryStatusListener in order to indicate
 // the current battery status.
 // Opcode: 20
+#[derive(Debug)]
 pub struct BatteryStatus {
     listener_id: u32,       // Listener identifier.
     battery_percentage: i8, // A value between 0 and 100 that indicates the current battery status. The value can also be -1 if unknown.
@@ -628,7 +813,7 @@ pub struct BatteryStatus {
     timestamp: i64, // UNIX timestamp (time in seconds since 1970-01-01T00:00:00Z, excluding leap seconds).
 }
 
-pub fn unmarshal_battery_status(data: &[u8]) -> Result<Event> {
+fn unmarshal_battery_status(data: &[u8]) -> Result<Event> {
     check_sz(data, 13)?;
 
     let evt = BatteryStatus {

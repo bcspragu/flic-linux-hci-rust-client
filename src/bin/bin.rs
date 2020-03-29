@@ -1,11 +1,14 @@
-use flic::commands::Ping;
+use flic::events::{Opcode, Result};
 
-fn main() -> Result<(), std::io::Error> {
-    let mut client = flic::Client::new("localhost:5551")?;
+fn main() -> Result<()> {
+    let mut client = flic::Client::new();
 
-    let msg = Ping { ping_id: 1234567 };
+    client.register_handler(Opcode::GetInfoResponse, Box::new(|evt| { println!("Event: {:?}", evt); }));
 
-    client.send_command(Box::new(msg))?;
+    // TODO: Figure out how to safely listen while also allowing sending commands.
+    client.listen("localhost:5551")?;
+
+    //client.send_command(Box::new(GetInfo{}))?;
 
     Ok(())
 }
