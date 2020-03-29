@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/bcspragu/flic-linux-hci-rust-client.svg?branch=master)](https://travis-ci.com/bcspragu/flic-linux-hci-rust-client)
+
 # Rust Client for Flic Linux SDK
 
 This repo contains a Rust library crate for interacting with Shortcut Labs
@@ -9,11 +11,10 @@ comments are welcome!
 
 ## TODO
 
-There's still lots left to do:
-
 - [ ] Actually try it out (use it in a binary)
-- [ ] Handle unmarshalling for the remaining few events
 - [ ] Update comments to make decent-looking rustdoc output
+- [ ] Add tests for events and stuff
+- [x] Handle unmarshalling for the remaining few events
 - [x] Set up automated testing and stuff with Travis
 - [x] Document the commands and events and stuff with the documentation from the protocol
   - [x] Commands

@@ -1,5 +1,5 @@
 // TODO: Remove this, all this code will be used by clients eventually.
-#![allow(unused_variables, dead_code, unused_assignments)]
+#![allow(dead_code)]
 
 use crate::enums::*;
 use std::error;
@@ -32,10 +32,10 @@ pub enum Event {
 #[derive(Debug, Clone)]
 pub enum UnmarshalError {
     BadLength(usize, usize),
+    BadLengthAtLeast(usize, usize),
     BadString(string::FromUtf8Error),
     BadEnum(u8, &'static str),
     BadOpcode(u8),
-    Unimplemented, // TODO: Implement things and remove this
 }
 
 impl fmt::Display for UnmarshalError {
@@ -43,13 +43,15 @@ impl fmt::Display for UnmarshalError {
         match self {
             UnmarshalError::BadLength(got_len, want_len) => {
                 write!(f, "body length {}, expected {}", got_len, want_len)
-            }
+            },
+            UnmarshalError::BadLengthAtLeast(got_len, want_at_least_len) => {
+                write!(f, "body length {}, expected at least {}", got_len, want_at_least_len)
+            },
             UnmarshalError::BadString(err) => write!(f, "failed to load string: {}", err),
             UnmarshalError::BadEnum(field, val) => {
                 write!(f, "enum value {} is invalid for enum {}", field, val)
-            }
+            },
             UnmarshalError::BadOpcode(opcode) => write!(f, "unknown opcode {}", opcode),
-            UnmarshalError::Unimplemented => write!(f, "sorry, this hasn't been implemented yet!"),
         }
     }
 }
@@ -60,6 +62,14 @@ impl error::Error for UnmarshalError {
         // https://doc.rust-lang.org/rust-by-example/error/multiple_error_types/define_error_type.html
         None
     }
+}
+
+fn check_sz_at_least(data: &[u8], want_len: usize) -> Result<()> {
+    if data.len() >= want_len {
+        return Ok(());
+    }
+
+    Err(UnmarshalError::BadLength(data.len(), want_len))
 }
 
 fn check_sz(data: &[u8], want_len: usize) -> Result<()> {
@@ -74,8 +84,19 @@ fn load_bool(data: &[u8], o: usize) -> bool {
     data[o] == 1
 }
 
+fn load_u16(data: &[u8], o: usize) -> u16 {
+    u16::from_le_bytes([data[o], data[o + 1]])
+}
+
 fn load_u32(data: &[u8], o: usize) -> u32 {
     u32::from_le_bytes([data[o], data[o + 1], data[o + 2], data[o + 3]])
+}
+
+fn load_i16(data: &[u8], o: usize) -> i16 {
+    i16::from_le_bytes([
+        data[o],
+        data[o + 1],
+    ])
 }
 
 fn load_i64(data: &[u8], o: usize) -> i64 {
@@ -330,8 +351,51 @@ pub struct GetInfoResponse {
 }
 
 pub fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
-    // TODO: Implement!
-    Err(UnmarshalError::Unimplemented)
+    // We can't use check_sz off the bat for this one since it's dynamically sized. So first, we
+    // check it's at least large enough to include the number of entries in its repeated field.
+    check_sz_at_least(data, 15)?;
+
+    let nb_verified_buttons = load_u16(data, 13) as usize;
+
+    // Now we can see if the total size makes sense.
+    check_sz(data, 15 + nb_verified_buttons * 6)?;
+
+    let bluetooth_controller_state = match num::FromPrimitive::from_u8(data[0]) {
+        Some(status) => status,
+        None => return Err(UnmarshalError::BadEnum(data[0], "BluetoothControllerState")),
+    };
+
+    let my_bd_addr_type = match num::FromPrimitive::from_u8(data[7]) {
+        Some(addr_type) => addr_type,
+        None => return Err(UnmarshalError::BadEnum(data[7], "BdAddrType")),
+    };
+
+    let mut bd_addr_of_verified_buttons = vec![[0u8; 6]; nb_verified_buttons];
+
+    for i in 0..nb_verified_buttons {
+        bd_addr_of_verified_buttons[i] = [
+            data[15 + i*6],
+            data[16 + i*6],
+            data[17 + i*6],
+            data[18 + i*6],
+            data[19 + i*6],
+            data[20 + i*6],
+        ];
+    }
+
+    let evt = GetInfoResponse {
+        bluetooth_controller_state,
+        my_bd_addr: load_bd_addr(data, 1),
+        my_bd_addr_type,
+        max_pending_connections: data[8],
+        max_concurrently_connected_buttons: load_i16(data, 9),
+        current_pending_connections: data[11],
+        currently_no_space_for_new_connection: load_bool(data, 12),
+        nb_verified_buttons: nb_verified_buttons as u16,
+        bd_addr_of_verified_buttons,
+    };
+
+    Ok(Event::GetInfoResponse(evt))
 }
 
 // Sent when the maximum number of connections has been reached (immediately after the
