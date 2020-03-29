@@ -19,6 +19,8 @@ impl fmt::Debug for dyn Command {
     }
 }
 
+// This command is used to retrieve current state about the server. After this command is sent, an
+// EvtGetInfoResponse is sent back.
 pub struct GetInfo {}
 
 impl Command for GetInfo {
@@ -30,6 +32,10 @@ impl Command for GetInfo {
     }
 }
 
+// Creates a scanner with the given scan_id. For each advertisement packet received from a Flic
+// button by the server, an EvtAdvertisementPacket will be sent with the given scan_id until it is
+// removed using CmdRemoveScanner. If there is already an active scanner with this scan_id, this
+// does nothing.
 pub struct CreateScanner {
     pub scan_id: u32,
 }
@@ -43,6 +49,8 @@ impl Command for CreateScanner {
     }
 }
 
+// Removes the scanner with the given scan_id. Once this is received by the server, it will no
+// longer send out EvtAdvertisementPackets with this scan_id.
 pub struct RemoveScanner {
     pub scan_id: u32,
 }
@@ -56,6 +64,11 @@ impl Command for RemoveScanner {
     }
 }
 
+// Creates a connection channel for a Flic button with the given bluetooth address. You assign a
+// unique conn_id for this connection channel that will later be used in commands and events to
+// refer to this connection channel. After this command is received by the server, an
+// EvtCreateConnectionChannelResponse is sent. If there already exists a connection channel with
+// this conn_id, this does nothing.
 pub struct CreateConnectionChannel {
     pub conn_id: u32,
     pub bd_addr: [u8; 6],
@@ -77,6 +90,10 @@ impl Command for CreateConnectionChannel {
     }
 }
 
+// Removes a connection channel previously created with CmdCreateConnectionChannel. After this is
+// received by the server, this connection channel is removed and no further events will be sent
+// for this channel. If there are no other connection channels active to this Flic button among any
+// client, the physical bluetooth connection is disconnected.
 pub struct RemoveConnectionChannel {
     pub conn_id: u32,
 }
@@ -90,6 +107,8 @@ impl Command for RemoveConnectionChannel {
     }
 }
 
+// Removes all connection channels among all clients for the specified Flic button bluetooth
+// address.
 pub struct ForceDisconnect {
     pub bd_addr: [u8; 6],
 }
@@ -103,6 +122,9 @@ impl Command for ForceDisconnect {
     }
 }
 
+// Changes the accepted latency for this connection channel and the auto disconnect time. The
+// latency mode will be applied immediately but the auto disconnect time will be applied the next
+// time tme Flic is getting connected.
 pub struct ChangeModeParameters {
     pub conn_id: u32,
     pub latency_mode: LatencyMode,
@@ -122,6 +144,8 @@ impl Command for ChangeModeParameters {
     }
 }
 
+// If you for various reasons would like to ping the server, send this command. An EvtPingResponse
+// will be sent back in return with the same ping_id.
 pub struct Ping {
     pub ping_id: u32,
 }
@@ -135,6 +159,8 @@ impl Command for Ping {
     }
 }
 
+// Get info about a verified button. An EvtGetButtonInfoResponse will be sent back immediately in
+// return with the bd_addr field set to the same value as in the request.
 pub struct GetButtonInfo {
     pub bd_addr: [u8; 6],
 }
@@ -148,6 +174,7 @@ impl Command for GetButtonInfo {
     }
 }
 
+// Starts a scan wizard. If there already exists a scan wizard with the same id, this does nothing.
 pub struct CreateScanWizard {
     pub scan_wizard_id: u32,
 }
@@ -161,6 +188,9 @@ impl Command for CreateScanWizard {
     }
 }
 
+// Cancels a scan wizard that was previously started. If there exists a scan wizard with this id,
+// it is cancelled and an EvtScanWizardCompleted is sent with the reason set to
+// WizardCancelledByUser.
 pub struct CancelScanWizard {
     pub scan_wizard_id: u32,
 }
@@ -174,6 +204,11 @@ impl Command for CancelScanWizard {
     }
 }
 
+// Deletes a button. If the button exists in the list of verified buttons, all connection channels
+// will be removed for all clients for this button. After that the EvtButtonDeleted event will be
+// triggered for all clients. If the button does not exist in the list of verified buttons, the
+// request has no effects but an EvtButtonDeleted will be triggered anyway for this client with the
+// same address as in the request.
 pub struct DeleteButton {
     pub bd_addr: [u8; 6],
 }
@@ -187,6 +222,13 @@ impl Command for DeleteButton {
     }
 }
 
+// Creates a battery status listener for a specific button. If the given listener_id already exists
+// for this client, this does nothing. Once created, an EvtBatteryStatus will always immediately be
+// sent with the current battery status. Every time the battery status later updates, an
+// EvtBatteryStatus will be sent. This will usually happen not more often than every three hours.
+// Note that by just having a battery status listener doesn't mean flicd will automatically connect
+// to a Flic button in order to get updates. At least one client needs a connection channel for the
+// particular button to be able to get new updates.
 pub struct CreateBatteryStatusListener {
     pub listener_id: u32,
     pub bd_addr: [u8; 6],
@@ -203,6 +245,7 @@ impl Command for CreateBatteryStatusListener {
     }
 }
 
+// Removes a battery status listener.
 pub struct RemoveBatteryStatusListener {
     pub listener_id: u32,
 }
