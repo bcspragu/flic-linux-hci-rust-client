@@ -79,17 +79,15 @@ impl Client {
         }
         let mut stream = self.stream.as_ref().unwrap();
 
-        let mut header = [0 as u8; 3];
+        let mut header = [0 as u8; 2];
         stream
             .read_exact(&mut header)
             .expect("failed to read header");
         let len = u16::from_le_bytes([header[0], header[1]]);
-        let opcode = header[2];
 
-        // Minus one for the opcode
-        let mut body = vec![0u8; (len - 1) as usize];
+        let mut body = vec![0u8; len as usize];
         stream.read_exact(&mut body).expect("failed to read body");
 
-        events::unmarshal(opcode, &body)
+        events::unmarshal(&body)
     }
 }
