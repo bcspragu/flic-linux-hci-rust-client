@@ -1,9 +1,12 @@
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::collections::HashMap;
 
 use crate::commands;
-use crate::events::{self, UnmarshalError};
+use crate::events;
+use crate::Result;
+
+use crate::error::FlicError;
 
 pub struct Client {
     stream: Option<TcpStream>,
@@ -18,21 +21,22 @@ impl Client {
         }
     }
 
-    pub fn register_handler(&mut self, opcode: events::Opcode, event_fn: Box<dyn Fn(&events::Event)>) {
+    pub fn register_handler(
+        &mut self,
+        opcode: events::Opcode,
+        event_fn: Box<dyn Fn(&events::Event)>,
+    ) {
         let v = self.handlers.entry(opcode).or_insert(vec![]);
         v.push(event_fn);
     }
 
-    pub fn listen(&mut self, host: &str) -> events::Result<()> {
+    pub fn listen(&mut self, host: &str) -> Result<()> {
         match self.stream {
-            Some(_) => return Err(UnmarshalError::Generic("stream already open")),
+            Some(_) => return Err(FlicError::Generic(String::from("stream already open"))),
             None => (), // This is expected.
         }
 
-        self.stream = match TcpStream::connect(host) {
-            Ok(stream) => Some(stream),
-            Err(_) => return Err(UnmarshalError::Generic("failed to connect to host")),
-        };
+        self.stream = Some(TcpStream::connect(host)?);
 
         loop {
             let (evt, opcode) = self.next_event()?;
@@ -49,11 +53,11 @@ impl Client {
         }
     }
 
-    pub fn send_command(&mut self, cmd: Box<dyn commands::Command>) -> events::Result<()> {
-        if let None = self.stream {
-            return Err(UnmarshalError::Generic("no stream open"));
-        }
-        let mut stream = self.stream.as_ref().unwrap();
+    pub fn send_command(&mut self, cmd: Box<dyn commands::Command>) -> Result<()> {
+        let mut stream = match self.stream.as_ref() {
+            Some(stream) => stream,
+            None => return Err(FlicError::Generic(String::from("no stream open"))),
+        };
 
         let opcode = cmd.opcode();
         let mut body = cmd.marshal();
@@ -65,15 +69,13 @@ impl Client {
         body.insert(0, len[1]);
         body.insert(0, len[0]);
 
-        match stream.write(body.as_slice()) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(UnmarshalError::Generic("failed to write")),
-        }
+        stream.write(body.as_slice())?;
+        Ok(())
     }
 
-    pub fn next_event(&mut self) -> events::Result<(events::Event, events::Opcode)> {
+    pub fn next_event(&mut self) -> Result<(events::Event, events::Opcode)> {
         if let None = self.stream {
-            return Err(UnmarshalError::Generic("no stream open"));
+            return Err(FlicError::Generic(String::from("no stream open")));
         }
         let mut stream = self.stream.as_ref().unwrap();
 
@@ -86,9 +88,7 @@ impl Client {
 
         // Minus one for the opcode
         let mut body = vec![0u8; (len - 1) as usize];
-        stream
-            .read_exact(&mut body)
-            .expect("failed to read body");
+        stream.read_exact(&mut body).expect("failed to read body");
 
         events::unmarshal(opcode, &body)
     }

@@ -2,12 +2,9 @@
 #![allow(dead_code)]
 
 use crate::enums::*;
-use std::error;
-use std::fmt;
-use std::string;
+use crate::error::{FlicError, UnmarshalError};
+use crate::Result;
 use num::FromPrimitive;
-
-pub type Result<T> = std::result::Result<T, UnmarshalError>;
 
 #[derive(FromPrimitive, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Opcode {
@@ -37,32 +34,32 @@ pub enum Opcode {
 pub fn unmarshal(opcode: u8, data: &[u8]) -> Result<(Event, Opcode)> {
     let opcode = match FromPrimitive::from_u8(opcode) {
         Some(opcode) => opcode,
-        None => return Err(UnmarshalError::BadOpcode(opcode)),
+        None => return Err(FlicError::Unmarshal(UnmarshalError::BadOpcode(opcode))),
     };
 
     let unmarshal_event = match opcode {
-            Opcode::AdvertisementPacket => unmarshal_advertisement_packet,
-            Opcode::CreateConnectionChannelResponse => unmarshal_create_connection_channel_response,
-            Opcode::ConnectionStatusChanged => unmarshal_connection_status_changed,
-            Opcode::ConnectionChannelRemoved => unmarshal_connection_channel_removed,
-            Opcode::ButtonUpOrDown => unmarshal_button_up_or_down,
-            Opcode::ButtonClickOrHold => unmarshal_button_click_or_hold,
-            Opcode::ButtonSingleOrDoubleClick => unmarshal_button_single_or_double_click,
-            Opcode::ButtonSingleOrDoubleClickOrHold => unmarshal_button_single_or_double_click_or_hold,
-            Opcode::NewVerifiedButton => unmarshal_new_verified_button,
-            Opcode::GetInfoResponse => unmarshal_get_info_response,
-            Opcode::NoSpaceForNewConnection => unmarshal_no_space_for_new_connection,
-            Opcode::GotSpaceForNewConnection => unmarshal_got_space_for_new_connection,
-            Opcode::BluetoothControllerStateChange => unmarshal_bluetooth_controller_state_change,
-            Opcode::PingResponse => unmarshal_ping_response,
-            Opcode::GetButtonInfoResponse => unmarshal_get_button_info_response,
-            Opcode::ScanWizardFoundPrivateButton => unmarshal_scan_wizard_found_private_button,
-            Opcode::ScanWizardFoundPublicButton => unmarshal_scan_wizard_found_public_button,
-            Opcode::ScanWizardButtonConnected => unmarshal_scan_wizard_button_connected,
-            Opcode::ScanWizardCompleted => unmarshal_scan_wizard_completed,
-            Opcode::ButtonDeleted => unmarshal_button_deleted,
-            Opcode::BatteryStatus => unmarshal_battery_status,
-        };
+        Opcode::AdvertisementPacket => unmarshal_advertisement_packet,
+        Opcode::CreateConnectionChannelResponse => unmarshal_create_connection_channel_response,
+        Opcode::ConnectionStatusChanged => unmarshal_connection_status_changed,
+        Opcode::ConnectionChannelRemoved => unmarshal_connection_channel_removed,
+        Opcode::ButtonUpOrDown => unmarshal_button_up_or_down,
+        Opcode::ButtonClickOrHold => unmarshal_button_click_or_hold,
+        Opcode::ButtonSingleOrDoubleClick => unmarshal_button_single_or_double_click,
+        Opcode::ButtonSingleOrDoubleClickOrHold => unmarshal_button_single_or_double_click_or_hold,
+        Opcode::NewVerifiedButton => unmarshal_new_verified_button,
+        Opcode::GetInfoResponse => unmarshal_get_info_response,
+        Opcode::NoSpaceForNewConnection => unmarshal_no_space_for_new_connection,
+        Opcode::GotSpaceForNewConnection => unmarshal_got_space_for_new_connection,
+        Opcode::BluetoothControllerStateChange => unmarshal_bluetooth_controller_state_change,
+        Opcode::PingResponse => unmarshal_ping_response,
+        Opcode::GetButtonInfoResponse => unmarshal_get_button_info_response,
+        Opcode::ScanWizardFoundPrivateButton => unmarshal_scan_wizard_found_private_button,
+        Opcode::ScanWizardFoundPublicButton => unmarshal_scan_wizard_found_public_button,
+        Opcode::ScanWizardButtonConnected => unmarshal_scan_wizard_button_connected,
+        Opcode::ScanWizardCompleted => unmarshal_scan_wizard_completed,
+        Opcode::ButtonDeleted => unmarshal_button_deleted,
+        Opcode::BatteryStatus => unmarshal_battery_status,
+    };
 
     let evt = unmarshal_event(data)?;
 
@@ -94,51 +91,15 @@ pub enum Event {
     BatteryStatus(BatteryStatus),
 }
 
-#[derive(Debug, Clone)]
-pub enum UnmarshalError {
-    Generic(&'static str),
-    BadLength(usize, usize),
-    BadLengthAtLeast(usize, usize),
-    BadString(string::FromUtf8Error),
-    BadEnum(u8, &'static str),
-    BadOpcode(u8),
-    BadClickType(ClickType, &'static str),
-}
-
-impl fmt::Display for UnmarshalError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            UnmarshalError::Generic(err) => write!(f, "{}", err),
-            UnmarshalError::BadLength(got_len, want_len) => {
-                write!(f, "body length {}, expected {}", got_len, want_len)
-            },
-            UnmarshalError::BadLengthAtLeast(got_len, want_at_least_len) => {
-                write!(f, "body length {}, expected at least {}", got_len, want_at_least_len)
-            },
-            UnmarshalError::BadString(err) => write!(f, "failed to load string: {}", err),
-            UnmarshalError::BadEnum(field, val) => {
-                write!(f, "enum value {} is invalid for enum {}", field, val)
-            },
-            UnmarshalError::BadOpcode(opcode) => write!(f, "unknown opcode {:?}", opcode),
-            UnmarshalError::BadClickType(click_type, btn_evt) => write!(f, "click type {:?} not valid for {}", click_type, btn_evt),
-        }
-    }
-}
-
-impl error::Error for UnmarshalError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        // Underlying cause isn't tracked. Note: I mostly just copied this bit from
-        // https://doc.rust-lang.org/rust-by-example/error/multiple_error_types/define_error_type.html
-        None
-    }
-}
-
 fn check_sz_at_least(data: &[u8], want_len: usize) -> Result<()> {
     if data.len() >= want_len {
         return Ok(());
     }
 
-    Err(UnmarshalError::BadLength(data.len(), want_len))
+    Err(FlicError::Unmarshal(UnmarshalError::BadLengthAtLeast(
+        data.len(),
+        want_len,
+    )))
 }
 
 fn check_sz(data: &[u8], want_len: usize) -> Result<()> {
@@ -146,7 +107,10 @@ fn check_sz(data: &[u8], want_len: usize) -> Result<()> {
         return Ok(());
     }
 
-    Err(UnmarshalError::BadLength(data.len(), want_len))
+    Err(FlicError::Unmarshal(UnmarshalError::BadLength(
+        data.len(),
+        want_len,
+    )))
 }
 
 fn load_bool(data: &[u8], o: usize) -> bool {
@@ -162,10 +126,7 @@ fn load_u32(data: &[u8], o: usize) -> u32 {
 }
 
 fn load_i16(data: &[u8], o: usize) -> i16 {
-    i16::from_le_bytes([
-        data[o],
-        data[o + 1],
-    ])
+    i16::from_le_bytes([data[o], data[o + 1]])
 }
 
 fn load_i64(data: &[u8], o: usize) -> i64 {
@@ -185,7 +146,7 @@ fn load_string(data: &[u8], o: usize, sz: usize) -> Result<String> {
     let res = String::from_utf8(data[o..=(o + sz)].to_vec());
     match res {
         Ok(s) => Ok(s),
-        Err(err) => Err(UnmarshalError::BadString(err)),
+        Err(err) => Err(FlicError::Unmarshal(UnmarshalError::BadString(err))),
     }
 }
 
@@ -276,15 +237,22 @@ fn unmarshal_create_connection_channel_response(data: &[u8]) -> Result<Event> {
 
     let error = match FromPrimitive::from_u8(data[4]) {
         Some(err) => err,
-        None => return Err(UnmarshalError::BadEnum(
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
                 data[4],
-                "CreateConnectionChannelError",
-            )),
+                String::from("CreateConnectionChannelError"),
+            )))
+        }
     };
 
     let connection_status = match FromPrimitive::from_u8(data[5]) {
         Some(conn_status) => conn_status,
-        None => return Err(UnmarshalError::BadEnum(data[5], "ConnectionStatus")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[5],
+                String::from("ConnectionStatus"),
+            )))
+        }
     };
 
     let evt = CreateConnectionChannelResponse {
@@ -310,12 +278,22 @@ fn unmarshal_connection_status_changed(data: &[u8]) -> Result<Event> {
 
     let connection_status = match FromPrimitive::from_u8(data[4]) {
         Some(conn_status) => conn_status,
-        None => return Err(UnmarshalError::BadEnum(data[4], "ConnectionStatus")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[4],
+                String::from("ConnectionStatus"),
+            )))
+        }
     };
 
     let disconnect_reason = match FromPrimitive::from_u8(data[5]) {
         Some(disconn_reason) => disconn_reason,
-        None => return Err(UnmarshalError::BadEnum(data[5], "DisconnectionReason")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[5],
+                String::from("DisconnectionReason"),
+            )))
+        }
     };
 
     let evt = ConnectionStatusChanged {
@@ -344,7 +322,12 @@ fn unmarshal_connection_channel_removed(data: &[u8]) -> Result<Event> {
 
     let removed_reason = match FromPrimitive::from_u8(data[5]) {
         Some(rem_reason) => rem_reason,
-        None => return Err(UnmarshalError::BadEnum(data[5], "RemoveReason")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[5],
+                String::from("RemoveReason"),
+            )))
+        }
     };
 
     let evt = ConnectionChannelRemoved {
@@ -371,7 +354,12 @@ fn unmarshal_base_button_event(data: &[u8]) -> Result<BaseButtonEvent> {
 
     let click_type = match FromPrimitive::from_u8(data[5]) {
         Some(click_type) => click_type,
-        None => return Err(UnmarshalError::BadEnum(data[5], "ClickType")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[5],
+                String::from("ClickType"),
+            )))
+        }
     };
 
     Ok(BaseButtonEvent {
@@ -398,10 +386,15 @@ fn unmarshal_button_up_or_down(data: &[u8]) -> Result<Event> {
 
     match base_event.click_type {
         ClickType::ButtonUp | ClickType::ButtonDown => (), // This is fine
-        _ => return Err(UnmarshalError::BadClickType(base_event.click_type, "ButtonUpOrDown")),
+        _ => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadClickType(
+                base_event.click_type,
+                String::from("ButtonUpOrDown"),
+            )))
+        }
     };
 
-    Ok(Event::ButtonUpOrDown(ButtonUpOrDown{
+    Ok(Event::ButtonUpOrDown(ButtonUpOrDown {
         conn_id: base_event.conn_id,
         click_type: base_event.click_type,
         was_queued: base_event.was_queued,
@@ -425,10 +418,15 @@ fn unmarshal_button_click_or_hold(data: &[u8]) -> Result<Event> {
 
     match base_event.click_type {
         ClickType::ButtonClick | ClickType::ButtonHold => (), // This is fine
-        _ => return Err(UnmarshalError::BadClickType(base_event.click_type, "ButtonClickOrHold")),
+        _ => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadClickType(
+                base_event.click_type,
+                String::from("ButtonClickOrHold"),
+            )))
+        }
     };
 
-    Ok(Event::ButtonClickOrHold(ButtonClickOrHold{
+    Ok(Event::ButtonClickOrHold(ButtonClickOrHold {
         conn_id: base_event.conn_id,
         click_type: base_event.click_type,
         was_queued: base_event.was_queued,
@@ -449,18 +447,25 @@ pub struct ButtonSingleOrDoubleClick {
 
 fn unmarshal_button_single_or_double_click(data: &[u8]) -> Result<Event> {
     let base_event = unmarshal_base_button_event(data)?;
-    
+
     match base_event.click_type {
         ClickType::ButtonSingleClick | ClickType::ButtonDoubleClick => (), // This is fine
-        _ => return Err(UnmarshalError::BadClickType(base_event.click_type, "ButtonSingleOrDoubleClick")),
+        _ => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadClickType(
+                base_event.click_type,
+                String::from("ButtonSingleOrDoubleClick"),
+            )))
+        }
     };
 
-    Ok(Event::ButtonSingleOrDoubleClick(ButtonSingleOrDoubleClick{
-        conn_id: base_event.conn_id,
-        click_type: base_event.click_type,
-        was_queued: base_event.was_queued,
-        time_diff: base_event.time_diff,
-    }))
+    Ok(Event::ButtonSingleOrDoubleClick(
+        ButtonSingleOrDoubleClick {
+            conn_id: base_event.conn_id,
+            click_type: base_event.click_type,
+            was_queued: base_event.was_queued,
+            time_diff: base_event.time_diff,
+        },
+    ))
 }
 
 // Possible ClickTypes are ButtonSingleClick, ButtonDoubleClick and ButtonHold. Used if you want to
@@ -476,18 +481,25 @@ pub struct ButtonSingleOrDoubleClickOrHold {
 
 fn unmarshal_button_single_or_double_click_or_hold(data: &[u8]) -> Result<Event> {
     let base_event = unmarshal_base_button_event(data)?;
-    
+
     match base_event.click_type {
         ClickType::ButtonSingleClick | ClickType::ButtonDoubleClick | ClickType::ButtonHold => (), // This is fine
-        _ => return Err(UnmarshalError::BadClickType(base_event.click_type, "ButtonSingleOrDoubleClickOrHold")),
+        _ => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadClickType(
+                base_event.click_type,
+                String::from("ButtonSingleOrDoubleClickOrHold"),
+            )))
+        }
     };
 
-    Ok(Event::ButtonSingleOrDoubleClickOrHold(ButtonSingleOrDoubleClickOrHold{
-        conn_id: base_event.conn_id,
-        click_type: base_event.click_type,
-        was_queued: base_event.was_queued,
-        time_diff: base_event.time_diff,
-    }))
+    Ok(Event::ButtonSingleOrDoubleClickOrHold(
+        ButtonSingleOrDoubleClickOrHold {
+            conn_id: base_event.conn_id,
+            click_type: base_event.click_type,
+            was_queued: base_event.was_queued,
+            time_diff: base_event.time_diff,
+        },
+    ))
 }
 
 // This is sent to all clients when a button has been successfully verified that was not verified
@@ -536,24 +548,34 @@ fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
 
     let bluetooth_controller_state = match FromPrimitive::from_u8(data[0]) {
         Some(status) => status,
-        None => return Err(UnmarshalError::BadEnum(data[0], "BluetoothControllerState")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[0],
+                String::from("BluetoothControllerState"),
+            )))
+        }
     };
 
     let my_bd_addr_type = match FromPrimitive::from_u8(data[7]) {
         Some(addr_type) => addr_type,
-        None => return Err(UnmarshalError::BadEnum(data[7], "BdAddrType")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[7],
+                String::from("BdAddrType"),
+            )))
+        }
     };
 
     let mut bd_addr_of_verified_buttons = vec![[0u8; 6]; nb_verified_buttons];
 
     for i in 0..nb_verified_buttons {
         bd_addr_of_verified_buttons[i] = [
-            data[15 + i*6],
-            data[16 + i*6],
-            data[17 + i*6],
-            data[18 + i*6],
-            data[19 + i*6],
-            data[20 + i*6],
+            data[15 + i * 6],
+            data[16 + i * 6],
+            data[17 + i * 6],
+            data[18 + i * 6],
+            data[19 + i * 6],
+            data[20 + i * 6],
         ];
     }
 
@@ -632,7 +654,12 @@ fn unmarshal_bluetooth_controller_state_change(data: &[u8]) -> Result<Event> {
 
     let state = match FromPrimitive::from_u8(data[0]) {
         Some(state) => state,
-        None => return Err(UnmarshalError::BadEnum(data[0], "BluetoothControllerState")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[0],
+                String::from("BluetoothControllerState"),
+            )))
+        }
     };
 
     let evt = BluetoothControllerStateChange { state };
@@ -771,7 +798,12 @@ fn unmarshal_scan_wizard_completed(data: &[u8]) -> Result<Event> {
 
     let result = match FromPrimitive::from_u8(data[4]) {
         Some(res) => res,
-        None => return Err(UnmarshalError::BadEnum(data[4], "ScanWizardResult")),
+        None => {
+            return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
+                data[4],
+                String::from("ScanWizardResult"),
+            )))
+        }
     };
 
     let evt = ScanWizardCompleted {
