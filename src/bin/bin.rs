@@ -1,20 +1,27 @@
-use flic::events::Opcode;
+use flic::commands::{GetInfo};
+use flic::events::{self,Opcode};
 use flic::Result;
+use std::thread;
+use std::sync::Arc;
 
 fn main() -> Result<()> {
-    let mut client = flic::Client::new();
+    let client = Arc::new(flic::Client::new());
 
     client.register_handler(
         Opcode::GetInfoResponse,
-        Box::new(|evt| {
-            println!("Event: {:?}", evt);
-        }),
+        handle_event,
     );
 
-    // TODO: Figure out how to safely listen while also allowing sending commands.
-    client.listen("localhost:5551")?;
+    let c = Arc::clone(&client);
+    thread::spawn(move || {
+        c.listen("localhost:5551").unwrap();
+    });
 
-    //client.send_command(Box::new(GetInfo{}))?;
+    client.send_command(Box::new(GetInfo{}))?;
 
     Ok(())
+}
+
+fn handle_event(evt: &events::Event) {
+        println!("Event: {:?}", evt);
 }
