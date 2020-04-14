@@ -9,9 +9,11 @@ use crate::Result;
 
 use crate::error::FlicError;
 
+type Handler = Box<dyn Fn(&events::Event) + Send + 'static>;
+
 pub struct Client {
     stream: Mutex<Option<TcpStream>>,
-    handlers: Mutex<HashMap<events::Opcode, Vec<fn(&events::Event)>>>,
+    handlers: Mutex<HashMap<events::Opcode, Vec<Handler>>>,
 }
 
 impl Client {
@@ -22,14 +24,13 @@ impl Client {
         }
     }
 
-    pub fn register_handler(
-        &self,
-        opcode: events::Opcode,
-        event_fn: fn(&events::Event),
-    ) {
+    pub fn register_handler<F>(&self, opcode: events::Opcode, f: F)
+    where
+        F: Fn(&events::Event) + Send + 'static,
+    {
         let mut handlers = self.handlers.lock().unwrap();
         let v = handlers.entry(opcode).or_insert(vec![]);
-        v.push(event_fn);
+        v.push(Box::new(f));
     }
 
     pub fn listen(&self, host: &str) -> Result<()> {
@@ -41,7 +42,6 @@ impl Client {
             }
 
             *stream = Some(TcpStream::connect(host)?);
-
         }
 
         loop {
@@ -79,7 +79,10 @@ impl Client {
         events::unmarshal(&body)
     }
 
-    pub fn send_command(&self, cmd: Box<dyn commands::Command>) -> Result<()> {
+    pub fn send_command<C>(&self, cmd: C) -> Result<()>
+    where
+        C: commands::Command,
+    {
         let stream = self.stream.lock().unwrap();
 
         let mut stream = match stream.as_ref() {

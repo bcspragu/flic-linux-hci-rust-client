@@ -50,7 +50,7 @@ impl From<String> for FlicError {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum UnmarshalError {
     BadLength(usize, usize),
     BadLengthAtLeast(usize, usize),

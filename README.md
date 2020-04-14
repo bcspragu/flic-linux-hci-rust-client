@@ -11,6 +11,10 @@ comments are welcome!
 
 ## TODO
 
+- [ ] Fix the current model of TcpStream communication. Basically, commands
+  never get sent because we're locked on waiting for the data to come back from
+  the stream. We need a way to stop waiting for a request so we can issue
+  commands.
 - [ ] Actually try it out (use it in a binary)
 - [ ] Update comments to make decent-looking rustdoc output
 - [ ] Add tests for events and stuff

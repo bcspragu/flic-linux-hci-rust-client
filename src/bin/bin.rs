@@ -1,27 +1,23 @@
-use flic::commands::{GetInfo};
-use flic::events::{self,Opcode};
+use flic::commands::GetInfo;
+use flic::events::Opcode;
 use flic::Result;
-use std::thread;
 use std::sync::Arc;
+use std::{thread, time};
 
 fn main() -> Result<()> {
     let client = Arc::new(flic::Client::new());
 
-    client.register_handler(
-        Opcode::GetInfoResponse,
-        handle_event,
-    );
+    client.register_handler(Opcode::GetInfoResponse, |evt| {
+        println!("Event: {:?}", evt);
+    });
 
     let c = Arc::clone(&client);
     thread::spawn(move || {
         c.listen("localhost:5551").unwrap();
     });
 
-    client.send_command(Box::new(GetInfo{}))?;
+    thread::sleep(time::Duration::from_millis(1000));
+    client.send_command(GetInfo {})?;
 
     Ok(())
-}
-
-fn handle_event(evt: &events::Event) {
-        println!("Event: {:?}", evt);
 }
