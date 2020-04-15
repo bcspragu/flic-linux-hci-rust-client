@@ -17,6 +17,8 @@ comments are welcome!
   - [ ] Support pairing buttons
   - [ ] Have persistence of some kind
   - [ ] Support things happening when buttons are clicked
+- [ ] Add integration tests that download the flicd binary from master or a
+      known release and run the binary against them.
 - [x] Actually try it out (use it in a binary)
 - [x] Fix the current model of TcpStream communication. Basically, commands
   never get sent because we're locked on waiting for the data to come back from
