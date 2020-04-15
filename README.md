@@ -11,13 +11,19 @@ comments are welcome!
 
 ## TODO
 
-- [ ] Fix the current model of TcpStream communication. Basically, commands
+- [ ] Update comments to make decent-looking rustdoc output
+- [ ] Add tests for events and stuff
+- [ ] Build out the binary to be a full-featured FlicHub replacement
+  - [ ] Support pairing buttons
+  - [ ] Have persistence of some kind
+  - [ ] Support things happening when buttons are clicked
+- [x] Actually try it out (use it in a binary)
+- [x] Fix the current model of TcpStream communication. Basically, commands
   never get sent because we're locked on waiting for the data to come back from
   the stream. We need a way to stop waiting for a request so we can issue
   commands.
-- [ ] Actually try it out (use it in a binary)
-- [ ] Update comments to make decent-looking rustdoc output
-- [ ] Add tests for events and stuff
+  - For the curious, the fix was to `try_clone` the stream and use one for
+    reading and one for writing.
 - [x] Handle unmarshalling for the remaining few events
 - [x] Set up automated testing and stuff with Travis
 - [x] Document the commands and events and stuff with the documentation from the protocol

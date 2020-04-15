@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::{thread, time};
 
 fn main() -> Result<()> {
-    let client = Arc::new(flic::Client::new());
+    let client = Arc::new(flic::Client::new("localhost:5551")?);
 
     client.register_handler(Opcode::GetInfoResponse, |evt| {
         println!("Event: {:?}", evt);
@@ -13,11 +13,12 @@ fn main() -> Result<()> {
 
     let c = Arc::clone(&client);
     thread::spawn(move || {
-        c.listen("localhost:5551").unwrap();
+        c.listen().unwrap();
     });
 
     thread::sleep(time::Duration::from_millis(1000));
     client.send_command(GetInfo {})?;
+    thread::sleep(time::Duration::from_millis(1000));
 
     Ok(())
 }

@@ -7,21 +7,23 @@ use crate::commands;
 use crate::events;
 use crate::Result;
 
-use crate::error::FlicError;
-
 type Handler = Box<dyn Fn(&events::Event) + Send + 'static>;
 
 pub struct Client {
-    stream: Mutex<Option<TcpStream>>,
+    writer: Mutex<TcpStream>,
+    reader: Mutex<TcpStream>,
     handlers: Mutex<HashMap<events::Opcode, Vec<Handler>>>,
 }
 
 impl Client {
-    pub fn new() -> Client {
-        Client {
-            stream: Mutex::new(None),
+    pub fn new(host: &str) -> Result<Client> {
+        let reader = TcpStream::connect(host)?;
+        let writer = reader.try_clone()?;
+        Ok(Client {
+            writer: Mutex::new(writer),
+            reader: Mutex::new(reader),
             handlers: Mutex::new(HashMap::new()),
-        }
+        })
     }
 
     pub fn register_handler<F>(&self, opcode: events::Opcode, f: F)
@@ -33,20 +35,9 @@ impl Client {
         v.push(Box::new(f));
     }
 
-    pub fn listen(&self, host: &str) -> Result<()> {
-        {
-            let mut stream = self.stream.lock().unwrap();
-            match *stream {
-                Some(_) => return Err(FlicError::Generic(String::from("stream already open"))),
-                None => (), // This is expected.
-            }
-
-            *stream = Some(TcpStream::connect(host)?);
-        }
-
+    pub fn listen(&self) -> Result<()> {
         loop {
             let (evt, opcode) = self.next_event()?;
-            println!("Event: {:?}, Opcode: {:?}", evt, opcode);
 
             let handlers = self.handlers.lock().unwrap();
             let handlers = match handlers.get(&opcode) {
@@ -61,16 +52,13 @@ impl Client {
     }
 
     pub fn next_event(&self) -> Result<(events::Event, events::Opcode)> {
-        let stream = self.stream.lock().unwrap();
-        let mut stream = match stream.as_ref() {
-            Some(stream) => stream,
-            None => return Err(FlicError::Generic(String::from("no stream open"))),
-        };
+        let mut stream = self.reader.lock().unwrap();
 
         let mut header = [0 as u8; 2];
         stream
             .read_exact(&mut header)
             .expect("failed to read header");
+
         let len = u16::from_le_bytes([header[0], header[1]]);
 
         let mut body = vec![0u8; len as usize];
@@ -83,12 +71,7 @@ impl Client {
     where
         C: commands::Command,
     {
-        let stream = self.stream.lock().unwrap();
-
-        let mut stream = match stream.as_ref() {
-            Some(stream) => stream,
-            None => return Err(FlicError::Generic(String::from("no stream open"))),
-        };
+        let mut stream = self.writer.lock().unwrap();
 
         let opcode = cmd.opcode();
         let mut body = cmd.marshal();
@@ -101,6 +84,8 @@ impl Client {
         body.insert(0, len[0]);
 
         stream.write(body.as_slice())?;
+        stream.flush()?;
+
         Ok(())
     }
 }
