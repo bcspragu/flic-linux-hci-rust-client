@@ -320,11 +320,11 @@ pub struct ConnectionChannelRemoved {
 fn unmarshal_connection_channel_removed(data: &[u8]) -> Result<Event> {
     check_sz(data, 5)?;
 
-    let removed_reason = match FromPrimitive::from_u8(data[5]) {
+    let removed_reason = match FromPrimitive::from_u8(data[4]) {
         Some(rem_reason) => rem_reason,
         None => {
             return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
-                data[5],
+                data[4],
                 String::from("RemoveReason"),
             )))
         }
@@ -352,11 +352,11 @@ struct BaseButtonEvent {
 fn unmarshal_base_button_event(data: &[u8]) -> Result<BaseButtonEvent> {
     check_sz(data, 10)?;
 
-    let click_type = match FromPrimitive::from_u8(data[5]) {
+    let click_type = match FromPrimitive::from_u8(data[4]) {
         Some(click_type) => click_type,
         None => {
             return Err(FlicError::Unmarshal(UnmarshalError::BadEnum(
-                data[5],
+                data[4],
                 String::from("ClickType"),
             )))
         }
@@ -913,135 +913,171 @@ mod tests {
                 connection_status: ConnectionStatus::Ready,
             })
             ),
-            /*
-        TODO: Fill out and uncomment the rest of these tests.
         unmarshal_connection_status_changed: (
-            &vec![],
+            &vec![
+                0x02, // opcode
+                0x78, 0x56, 0x34, 0x12, // conn_id
+                0x01, // connection_status
+                0x02, // disconnect_reason
+            ],
             Event::ConnectionStatusChanged(ConnectionStatusChanged{
-                conn_id: u32,                        // Connection channel identifier.
-                connection_status: ConnectionStatus, // New connection status.
-                disconnect_reason: DisconnectReason, // If the connection status is Disconnected, this contains the reason. Otherwise this parameter is considered invalid.
+                conn_id: 0x12345678,
+                connection_status: ConnectionStatus::Connected,
+                disconnect_reason: DisconnectReason::TimedOut,
             })
             ),
         unmarshal_connection_channel_removed: (
-            &vec![],
+            &vec![
+                0x03, // opcode
+                0x78, 0x56, 0x34, 0x12, // conn_id
+                0x03, // removed_reason
+            ],
             Event::ConnectionChannelRemoved(ConnectionChannelRemoved{
-                conn_id: u32,                  // Connection channel identifier.
-                removed_reason: RemovedReason, // Reason for this connection channel being removed.
+                conn_id: 0x12345678,
+                removed_reason: RemovedReason::ButtonIsPrivate,
             })
             ),
         unmarshal_button_up_or_down: (
-            &vec![],
+            &vec![
+                0x04, // opcode
+                0x78, 0x56, 0x34, 0x12, // conn_id
+                0x01, // click_type
+                0x01, // was_queued
+                0x89, 0x67, 0x45, 0x23, // time_diff
+            ],
             Event::ButtonUpOrDown(ButtonUpOrDown{
-                conn_id: u32,          // Connection channel identifier.
-                click_type: ClickType, // The click type. For each opcode, there are different possible values.
-                was_queued: bool, // If this button event happened during the button was disconnected or not.
-                time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+                conn_id: 0x12345678,
+                click_type: ClickType::ButtonUp,
+                was_queued: true,
+                time_diff: 0x23456789,
             })
             ),
         unmarshal_button_click_or_hold: (
-            &vec![],
+            &vec![
+                0x05, // opcode
+                0x78, 0x56, 0x34, 0x12, // conn_id
+                0x02, // click_type
+                0x01, // was_queued
+                0x89, 0x67, 0x45, 0x23, // time_diff
+            ],
             Event::ButtonClickOrHold(ButtonClickOrHold{
-                conn_id: u32,          // Connection channel identifier.
-                click_type: ClickType, // The click type. For each opcode, there are different possible values.
-                was_queued: bool, // If this button event happened during the button was disconnected or not.
-                time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+                conn_id: 0x12345678,
+                click_type: ClickType::ButtonClick,
+                was_queued: true,
+                time_diff: 0x23456789,
             })
             ),
         unmarshal_button_single_or_double_click: (
-            &vec![],
+            &vec![
+                0x06, // opcode
+                0x78, 0x56, 0x34, 0x12, // conn_id
+                0x04, // click_type
+                0x01, // was_queued
+                0x89, 0x67, 0x45, 0x23, // time_diff
+            ],
             Event::ButtonSingleOrDoubleClick(ButtonSingleOrDoubleClick{
-                conn_id: u32,          // Connection channel identifier.
-                click_type: ClickType, // The click type. For each opcode, there are different possible values.
-                was_queued: bool, // If this button event happened during the button was disconnected or not.
-                time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+                conn_id: 0x12345678,
+                click_type: ClickType::ButtonDoubleClick,
+                was_queued: true,
+                time_diff: 0x23456789,
             })
             ),
         unmarshal_button_single_or_double_click_or_hold: (
-            &vec![],
+            &vec![
+                0x07, // opcode
+                0x78, 0x56, 0x34, 0x12, // conn_id
+                0x05, // click_type
+                0x01, // was_queued
+                0x89, 0x67, 0x45, 0x23, // time_diff
+            ],
             Event::ButtonSingleOrDoubleClickOrHold(ButtonSingleOrDoubleClickOrHold{
-                conn_id: u32,          // Connection channel identifier.
-                click_type: ClickType, // The click type. For each opcode, there are different possible values.
-                was_queued: bool, // If this button event happened during the button was disconnected or not.
-                time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+                conn_id: 0x12345678,
+                click_type: ClickType::ButtonHold,
+                was_queued: true,
+                time_diff: 0x23456789,
             })
             ),
         unmarshal_new_verified_button: (
-            &vec![],
+            &vec![
+                0x08, // opcode
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // bd_addr
+            ],
             Event::NewVerifiedButton(NewVerifiedButton{
-                bd_addr: [u8; 6], // The bluetooth address for the verified Flic button.
+                bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
             })
             ),
+            /*
+        TODO: Fill out and uncomment the rest of these tests.
         unmarshal_get_info_response: (
             &vec![],
             Event::GetInfoResponse(GetInfoResponse{
-                bluetooth_controller_state: BluetoothControllerState, // Current state of the HCI connection to the bluetooth controller.
-                my_bd_addr: [u8; 6], // Current bluetooth address / identity of this device.
-                my_bd_addr_type: BdAddrType, // Current bluetooth address type of this device.
-                max_pending_connections: u8, // The max number of Flic buttons that can be monitored at the same time, regardless of having an established connection or not.
-                max_concurrently_connected_buttons: i16, // The max number of Flic buttons that can have an established bluetooth connection at the same time. If this amount is reached, no other pending connection will succeed until another one has disconnected. This value will be -1 until the value becomes known. It becomes known first when the maximum number of connections is currently established and there is an attempt to establish yet another connection. Not all bluetooth controllers handle this correctly; some simply hides the fact that the maximum is reached and further connections won't succeed successfully, until a previously established connection is disconnected. Note: For some bluetooth controllers we have tested we have already hardcoded the correct value and this parameter will thus not be -1 but the correct one.
-                current_pending_connections: u8, // Current number of Flic buttons that are monitored by the server, among all clients.
-                currently_no_space_for_new_connection: bool, // The maximum number of concurrently connected buttons has been reached.
-                nb_verified_buttons: u16, // Number of verified buttons for this my_bd_addr/my_bd_addr_type pair.
-                bd_addr_of_verified_buttons: Vec<[u8; 6]>, // An array of all the verified buttons.
+                bluetooth_controller_state: BluetoothControllerState,
+                my_bd_addr: [u8; 6],
+                my_bd_addr_type: BdAddrType,
+                max_pending_connections: u8,
+                max_concurrently_connected_buttons: i16,
+                current_pending_connections: u8,
+                currently_no_space_for_new_connection: bool,
+                nb_verified_buttons: u16,
+                bd_addr_of_verified_buttons: Vec<[u8; 6]>,
             })
             ),
         unmarshal_no_space_for_new_connection: (
             &vec![],
             Event::NoSpaceForNewConnection(NoSpaceForNewConnection{
-                max_concurrently_connected_buttons: u8, // Same as in EvtGetInfoResponse.
+                max_concurrently_connected_buttons: u8,
             })
             ),
         unmarshal_got_space_for_new_connection: (
             &vec![],
             Event::GotSpaceForNewConnection(GotSpaceForNewConnection{
-                max_concurrently_connected_buttons: u8, // Same as in EvtGetInfoResponse.
+                max_concurrently_connected_buttons: u8,
             })
             ),
         unmarshal_bluetooth_controller_state_change: (
             &vec![],
             Event::BluetoothControllerStateChange(BluetoothControllerStateChange{
-                state: BluetoothControllerState, // The new state.
+                state: BluetoothControllerState,
             })
             ),
         unmarshal_ping_response: (
             &vec![],
             Event::PingResponse(PingResponse{
-                ping_id: u32, // Same ping id as sent in the CmdPing.
+                ping_id: u32,
             })
             ),
         unmarshal_get_button_info_response: (
             &vec![],
             Event::GetButtonInfoResponse(GetButtonInfoResponse{
-                bd_addr: [u8; 6], // The bluetooth device address of the request.
-                uuid: [u8; 16],   // The uuid of the button. Each button has a unique 128-bit identifier.
+                bd_addr: [u8; 6],
+                uuid: [u8; 16],
 
                 // Next two fields aren't copied directly.
-                // color_length: u8, // The length in bytes of the color following.
-                // color: [u8; 16], // The first color_length bytes of this array contain the UTF-8 encoding of the color. The other bytes will be zeros. Currently the following strings are defined: black, white, turquoise, green and yellow but more colors may be added later, so don't expect these are the only possible values.
+                // color_length: u8,
+                // color: [u8; 16],
                 color: String,
 
                 // Next two fields aren't copied directly.
-                // serial_number_length: u8, // The length in bytes of the serial number following.
-                // serial_number: [u8; 16], // The serial number of the button, in UTF-8 encoding. Only the first serial_number_length bytes are used. The other bytes will be zeros.
+                // serial_number_length: u8,
+                // serial_number: [u8; 16],
                 serial_number: String,
             })
             ),
         unmarshal_scan_wizard_found_private_button: (
             &vec![],
             Event::ScanWizardFoundPrivateButton(ScanWizardFoundPrivateButton{
-                scan_wizard_id: u32, // Scan wizard id.
+                scan_wizard_id: u32,
             })
             ),
         unmarshal_scan_wizard_found_public_button: (
             &vec![],
             Event::ScanWizardFoundPublicButton(ScanWizardFoundPublicButton{
-                scan_wizard_id: u32, // Scan wizard id.
-                bd_addr: [u8; 6],    // The bluetooth address of the Flic button that was found.
+                scan_wizard_id: u32,
+                bd_addr: [u8; 6],
 
                 // Next two fields aren't copied directly.
-                // name_length: u8,     // The length in bytes of the name following.
-                // name: [u8; 16], // The first name_length bytes of this array contain the UTF-8 encoding of the advertised name. The other bytes will be zeros.
+                // name_length: u8,
+                // name: [u8; 16],
                 name: String,
             })
             ),
@@ -1054,24 +1090,24 @@ mod tests {
         unmarshal_scan_wizard_completed: (
             &vec![],
             Event::ScanWizardCompleted(ScanWizardCompleted{
-                scan_wizard_id: u32,      // Scan wizard id.
-                result: ScanWizardResult, // Result of the scan wizard.
+                scan_wizard_id: u32,
+                result: ScanWizardResult,
             })
             ),
         unmarshal_button_deleted: (
             &vec![],
             Event::ButtonDeleted(ButtonDeleted{
-                bd_addr: [u8; 6],             // The bluetooth device address of the deleted button.
-                deleted_by_this_client: bool, // Whether or not the client that initiated the deletion was the current client.
+                bd_addr: [u8; 6],
+                deleted_by_this_client: bool,
             })
             ),
         unmarshal_battery_status: (
             &vec![],
             Event::BatteryStatus(BatteryStatus{
-                listener_id: u32,       // Listener identifier.
-                battery_percentage: i8, // A value between 0 and 100 that indicates the current battery status. The value can also be -1 if unknown.
+                listener_id: u32,
+                battery_percentage: i8,
                 // TODO: Maybe convert this into some sort of native Rust time type.
-                timestamp: i64, // UNIX timestamp (time in seconds since 1970-01-01T00:00:00Z, excluding leap seconds).
+                timestamp: i64,
             })
             ),
         */

@@ -5,19 +5,19 @@ use std::sync::Arc;
 use std::{thread, time};
 
 fn main() -> Result<()> {
-    let client = Arc::new(flic::Client::new("localhost:5551")?);
+    let manager = Arc::new(flic::Manager::new("localhost:5551")?);
 
-    client.register_handler(Opcode::GetInfoResponse, |evt| {
+    manager.register_handler(Opcode::GetInfoResponse, |evt| {
         println!("Event: {:?}", evt);
     });
 
-    let c = Arc::clone(&client);
+    let m = Arc::clone(&manager);
     thread::spawn(move || {
-        c.listen().unwrap();
+        m.start().unwrap();
     });
 
     thread::sleep(time::Duration::from_millis(1000));
-    client.send_command(GetInfo {})?;
+    manager.client.send_command(GetInfo {})?;
     thread::sleep(time::Duration::from_millis(1000));
 
     Ok(())

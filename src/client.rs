@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::Mutex;
@@ -7,12 +6,9 @@ use crate::commands;
 use crate::events;
 use crate::Result;
 
-type Handler = Box<dyn Fn(&events::Event) + Send + 'static>;
-
 pub struct Client {
     writer: Mutex<TcpStream>,
     reader: Mutex<TcpStream>,
-    handlers: Mutex<HashMap<events::Opcode, Vec<Handler>>>,
 }
 
 impl Client {
@@ -22,33 +18,7 @@ impl Client {
         Ok(Client {
             writer: Mutex::new(writer),
             reader: Mutex::new(reader),
-            handlers: Mutex::new(HashMap::new()),
         })
-    }
-
-    pub fn register_handler<F>(&self, opcode: events::Opcode, f: F)
-    where
-        F: Fn(&events::Event) + Send + 'static,
-    {
-        let mut handlers = self.handlers.lock().unwrap();
-        let v = handlers.entry(opcode).or_insert(vec![]);
-        v.push(Box::new(f));
-    }
-
-    pub fn listen(&self) -> Result<()> {
-        loop {
-            let (evt, opcode) = self.next_event()?;
-
-            let handlers = self.handlers.lock().unwrap();
-            let handlers = match handlers.get(&opcode) {
-                Some(handlers) => handlers,
-                None => continue,
-            };
-
-            for event_fn in handlers {
-                event_fn(&evt);
-            }
-        }
     }
 
     pub fn next_event(&self) -> Result<(events::Event, events::Opcode)> {
