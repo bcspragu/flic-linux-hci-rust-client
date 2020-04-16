@@ -59,3 +59,11 @@ impl Client {
         Ok(())
     }
 }
+
+impl Iterator for Client {
+    type Item = Result<(events::Event, events::Opcode)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(self.next_event())
+    }
+}

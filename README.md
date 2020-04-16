@@ -12,7 +12,8 @@ comments are welcome!
 ## TODO
 
 - [ ] Update comments to make decent-looking rustdoc output
-- [ ] Add tests for events and stuff
+- [ ] Add tests for remaining events and stuff
+- [ ] Make `bd_addr` a real type
 - [ ] Build out the binary to be a full-featured FlicHub replacement
   - [ ] Support pairing buttons
   - [ ] Have persistence of some kind
