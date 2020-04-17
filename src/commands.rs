@@ -1,6 +1,7 @@
 use std::fmt::{self, Formatter};
 
 use crate::enums::LatencyMode;
+use crate::BdAddr;
 
 pub trait Command {
     fn marshal(&self) -> Vec<u8>;
@@ -71,7 +72,7 @@ impl Command for RemoveScanner {
 // this conn_id, this does nothing.
 pub struct CreateConnectionChannel {
     pub conn_id: u32,
-    pub bd_addr: [u8; 6],
+    pub bd_addr: BdAddr,
     pub latency_mode: LatencyMode,
     pub auto_disconnect_time: u16,
 }
@@ -110,7 +111,7 @@ impl Command for RemoveConnectionChannel {
 // Removes all connection channels among all clients for the specified Flic button bluetooth
 // address.
 pub struct ForceDisconnect {
-    pub bd_addr: [u8; 6],
+    pub bd_addr: BdAddr,
 }
 
 impl Command for ForceDisconnect {
@@ -162,7 +163,7 @@ impl Command for Ping {
 // Get info about a verified button. An EvtGetButtonInfoResponse will be sent back immediately in
 // return with the bd_addr field set to the same value as in the request.
 pub struct GetButtonInfo {
-    pub bd_addr: [u8; 6],
+    pub bd_addr: BdAddr,
 }
 
 impl Command for GetButtonInfo {
@@ -210,7 +211,7 @@ impl Command for CancelScanWizard {
 // request has no effects but an EvtButtonDeleted will be triggered anyway for this client with the
 // same address as in the request.
 pub struct DeleteButton {
-    pub bd_addr: [u8; 6],
+    pub bd_addr: BdAddr,
 }
 
 impl Command for DeleteButton {
@@ -231,7 +232,7 @@ impl Command for DeleteButton {
 // particular button to be able to get new updates.
 pub struct CreateBatteryStatusListener {
     pub listener_id: u32,
-    pub bd_addr: [u8; 6],
+    pub bd_addr: BdAddr,
 }
 
 impl Command for CreateBatteryStatusListener {
@@ -289,7 +290,7 @@ mod tests {
     fn create_connection_channel_marshal() {
         let msg = CreateConnectionChannel {
             conn_id: 0x12345678,
-            bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+            bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
             latency_mode: LatencyMode::Normal,
             auto_disconnect_time: 0x4455,
         };
@@ -315,7 +316,7 @@ mod tests {
     #[test]
     fn force_disconnect_marshal() {
         let msg = ForceDisconnect {
-            bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+            bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
         };
         assert_eq!(msg.marshal(), vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
     }
@@ -348,7 +349,7 @@ mod tests {
     #[test]
     fn get_button_info_marshal() {
         let msg = GetButtonInfo {
-            bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+            bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
         };
         assert_eq!(msg.marshal(), vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
     }
@@ -372,7 +373,7 @@ mod tests {
     #[test]
     fn delete_button_marshal() {
         let msg = DeleteButton {
-            bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+            bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
         };
         assert_eq!(msg.marshal(), vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
     }
@@ -381,7 +382,7 @@ mod tests {
     fn create_battery_status_listener_marshal() {
         let msg = CreateBatteryStatusListener {
             listener_id: 0x12345678,
-            bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+            bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
         };
         assert_eq!(
             msg.marshal(),

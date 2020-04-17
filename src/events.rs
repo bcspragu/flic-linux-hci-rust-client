@@ -3,6 +3,7 @@
 
 use crate::enums::*;
 use crate::error::{FlicError, UnmarshalError};
+use crate::BdAddr;
 use crate::Result;
 use num::FromPrimitive;
 
@@ -150,15 +151,15 @@ fn load_string(data: &[u8], o: usize, sz: usize) -> Result<String> {
     }
 }
 
-fn load_bd_addr(data: &[u8], o: usize) -> [u8; 6] {
-    [
+fn load_bd_addr(data: &[u8], o: usize) -> BdAddr {
+    BdAddr([
         data[o],
         data[o + 1],
         data[o + 2],
         data[o + 3],
         data[o + 4],
         data[o + 5],
-    ]
+    ])
 }
 
 fn load_uuid(data: &[u8], o: usize) -> [u8; 16] {
@@ -189,7 +190,7 @@ fn load_uuid(data: &[u8], o: usize) -> [u8; 16] {
 #[derive(Debug, PartialEq)]
 pub struct AdvertisementPacket {
     scan_id: u32, // The scan id corresponding to the scanner which this advertisement packet belongs to.
-    bd_addr: [u8; 6], // The bluetooth address of this Flic button. Use it to establish a connection chnanel.
+    bd_addr: BdAddr, // The bluetooth address of this Flic button. Use it to establish a connection chnanel.
 
     // Next two fields aren't copied directly
     // name_length: u8,  // The length in bytes of the name following.
@@ -508,7 +509,7 @@ fn unmarshal_button_single_or_double_click_or_hold(data: &[u8]) -> Result<Event>
 // Opcode: 8
 #[derive(Debug, PartialEq)]
 pub struct NewVerifiedButton {
-    bd_addr: [u8; 6], // The bluetooth address for the verified Flic button.
+    bd_addr: BdAddr, // The bluetooth address for the verified Flic button.
 }
 
 fn unmarshal_new_verified_button(data: &[u8]) -> Result<Event> {
@@ -526,14 +527,14 @@ fn unmarshal_new_verified_button(data: &[u8]) -> Result<Event> {
 #[derive(Debug, PartialEq)]
 pub struct GetInfoResponse {
     bluetooth_controller_state: BluetoothControllerState, // Current state of the HCI connection to the bluetooth controller.
-    my_bd_addr: [u8; 6], // Current bluetooth address / identity of this device.
+    my_bd_addr: BdAddr, // Current bluetooth address / identity of this device.
     my_bd_addr_type: BdAddrType, // Current bluetooth address type of this device.
     max_pending_connections: u8, // The max number of Flic buttons that can be monitored at the same time, regardless of having an established connection or not.
     max_concurrently_connected_buttons: i16, // The max number of Flic buttons that can have an established bluetooth connection at the same time. If this amount is reached, no other pending connection will succeed until another one has disconnected. This value will be -1 until the value becomes known. It becomes known first when the maximum number of connections is currently established and there is an attempt to establish yet another connection. Not all bluetooth controllers handle this correctly; some simply hides the fact that the maximum is reached and further connections won't succeed successfully, until a previously established connection is disconnected. Note: For some bluetooth controllers we have tested we have already hardcoded the correct value and this parameter will thus not be -1 but the correct one.
     current_pending_connections: u8, // Current number of Flic buttons that are monitored by the server, among all clients.
     currently_no_space_for_new_connection: bool, // The maximum number of concurrently connected buttons has been reached.
     nb_verified_buttons: u16, // Number of verified buttons for this my_bd_addr/my_bd_addr_type pair.
-    bd_addr_of_verified_buttons: Vec<[u8; 6]>, // An array of all the verified buttons.
+    bd_addr_of_verified_buttons: Vec<BdAddr>, // An array of all the verified buttons.
 }
 
 fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
@@ -566,17 +567,10 @@ fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
         }
     };
 
-    let mut bd_addr_of_verified_buttons = vec![[0u8; 6]; nb_verified_buttons];
+    let mut bd_addr_of_verified_buttons = Vec::with_capacity(nb_verified_buttons);
 
     for i in 0..nb_verified_buttons {
-        bd_addr_of_verified_buttons[i] = [
-            data[15 + i * 6],
-            data[16 + i * 6],
-            data[17 + i * 6],
-            data[18 + i * 6],
-            data[19 + i * 6],
-            data[20 + i * 6],
-        ];
+        bd_addr_of_verified_buttons[i] = load_bd_addr(data, 15 + i * 6);
     }
 
     let evt = GetInfoResponse {
@@ -689,8 +683,8 @@ fn unmarshal_ping_response(data: &[u8]) -> Result<Event> {
 // Opcode: 14
 #[derive(Debug, PartialEq)]
 pub struct GetButtonInfoResponse {
-    bd_addr: [u8; 6], // The bluetooth device address of the request.
-    uuid: [u8; 16],   // The uuid of the button. Each button has a unique 128-bit identifier.
+    bd_addr: BdAddr, // The bluetooth device address of the request.
+    uuid: [u8; 16],  // The uuid of the button. Each button has a unique 128-bit identifier.
 
     // Next two fields aren't copied directly.
     // color_length: u8, // The length in bytes of the color following.
@@ -744,7 +738,7 @@ fn unmarshal_scan_wizard_found_private_button(data: &[u8]) -> Result<Event> {
 #[derive(Debug, PartialEq)]
 pub struct ScanWizardFoundPublicButton {
     scan_wizard_id: u32, // Scan wizard id.
-    bd_addr: [u8; 6],    // The bluetooth address of the Flic button that was found.
+    bd_addr: BdAddr,     // The bluetooth address of the Flic button that was found.
 
     // Next two fields aren't copied directly.
     // name_length: u8,     // The length in bytes of the name following.
@@ -819,7 +813,7 @@ fn unmarshal_scan_wizard_completed(data: &[u8]) -> Result<Event> {
 // Opcode: 19
 #[derive(Debug, PartialEq)]
 pub struct ButtonDeleted {
-    bd_addr: [u8; 6],             // The bluetooth device address of the deleted button.
+    bd_addr: BdAddr,              // The bluetooth device address of the deleted button.
     deleted_by_this_client: bool, // Whether or not the client that initiated the deletion was the current client.
 }
 
@@ -891,7 +885,7 @@ mod tests {
             ],
             Event::AdvertisementPacket(AdvertisementPacket{
                 scan_id: 0x12345678,
-                bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+                bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
                 name: String::from("The Name"),
                 rssi: 120,
                 is_private: true,
@@ -1003,7 +997,7 @@ mod tests {
                 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // bd_addr
             ],
             Event::NewVerifiedButton(NewVerifiedButton{
-                bd_addr: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+                bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
             })
             ),
             /*
@@ -1012,14 +1006,14 @@ mod tests {
             &vec![],
             Event::GetInfoResponse(GetInfoResponse{
                 bluetooth_controller_state: BluetoothControllerState,
-                my_bd_addr: [u8; 6],
+                my_bd_addr: BdAddr,
                 my_bd_addr_type: BdAddrType,
                 max_pending_connections: u8,
                 max_concurrently_connected_buttons: i16,
                 current_pending_connections: u8,
                 currently_no_space_for_new_connection: bool,
                 nb_verified_buttons: u16,
-                bd_addr_of_verified_buttons: Vec<[u8; 6]>,
+                bd_addr_of_verified_buttons: Vec<BdAddr>,
             })
             ),
         unmarshal_no_space_for_new_connection: (
@@ -1049,7 +1043,7 @@ mod tests {
         unmarshal_get_button_info_response: (
             &vec![],
             Event::GetButtonInfoResponse(GetButtonInfoResponse{
-                bd_addr: [u8; 6],
+                bd_addr: BdAddr,
                 uuid: [u8; 16],
 
                 // Next two fields aren't copied directly.
@@ -1073,7 +1067,7 @@ mod tests {
             &vec![],
             Event::ScanWizardFoundPublicButton(ScanWizardFoundPublicButton{
                 scan_wizard_id: u32,
-                bd_addr: [u8; 6],
+                bd_addr: BdAddr,
 
                 // Next two fields aren't copied directly.
                 // name_length: u8,
@@ -1097,7 +1091,7 @@ mod tests {
         unmarshal_button_deleted: (
             &vec![],
             Event::ButtonDeleted(ButtonDeleted{
-                bd_addr: [u8; 6],
+                bd_addr: BdAddr,
                 deleted_by_this_client: bool,
             })
             ),
