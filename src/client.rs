@@ -1,8 +1,10 @@
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::net::TcpStream;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use crate::commands;
+use crate::error::FlicError;
 use crate::events;
 use crate::Result;
 
@@ -22,19 +24,39 @@ impl Client {
     }
 
     pub fn next_event(&self) -> Result<(events::Event, events::Opcode)> {
+        Ok(self
+            .next_event_with_timeout(None)?
+            .expect("call is blocking, event must be returned"))
+    }
+
+    pub fn next_event_with_timeout(
+        &self,
+        timeout: Option<Duration>,
+    ) -> Result<Option<(events::Event, events::Opcode)>> {
         let mut stream = self.reader.lock().unwrap();
+        stream.set_read_timeout(timeout)?;
 
         let mut header = [0 as u8; 2];
-        stream
-            .read_exact(&mut header)
-            .expect("failed to read header");
+        match stream.read_exact(&mut header) {
+            Ok(_) => {}
+            Err(err) => match err.kind() {
+                ErrorKind::WouldBlock | ErrorKind::TimedOut => return Ok(None),
+                _ => return Err(FlicError::FlicD(err)),
+            },
+        }
 
         let len = u16::from_le_bytes([header[0], header[1]]);
 
         let mut body = vec![0u8; len as usize];
-        stream.read_exact(&mut body).expect("failed to read body");
+        match stream.read_exact(&mut body) {
+            Ok(_) => {}
+            Err(err) => match err.kind() {
+                ErrorKind::WouldBlock | ErrorKind::TimedOut => return Ok(None),
+                _ => return Err(FlicError::FlicD(err)),
+            },
+        }
 
-        events::unmarshal(&body)
+        Ok(Some(events::unmarshal(&body)?))
     }
 
     pub fn send_command<C>(&self, cmd: C) -> Result<()>
