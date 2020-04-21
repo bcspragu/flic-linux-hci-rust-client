@@ -189,18 +189,18 @@ fn load_uuid(data: &[u8], o: usize) -> [u8; 16] {
 // Opcode: 0
 #[derive(Debug, PartialEq)]
 pub struct AdvertisementPacket {
-    scan_id: u32, // The scan id corresponding to the scanner which this advertisement packet belongs to.
-    bd_addr: BdAddr, // The bluetooth address of this Flic button. Use it to establish a connection chnanel.
+    pub scan_id: u32, // The scan id corresponding to the scanner which this advertisement packet belongs to.
+    pub bd_addr: BdAddr, // The bluetooth address of this Flic button. Use it to establish a connection chnanel.
 
     // Next two fields aren't copied directly
     // name_length: u8,  // The length in bytes of the name following.
     // name: [u8; 16], // The first name_length bytes of this array contain the UTF-8 encoding of the advertised name. The other bytes will be zeros.
-    name: String,
-    rssi: i8, // Signal strength in dBm, between -126 and 20, where -127 is weakest and 20 is strongest. -127 means not available.
-    is_private: bool, // The Flic button is currently in private mode and won't accept connections from unbonded clients. Hold it down for 7 seconds while not attempting to connect to it to make it public. First then you may connect.
-    already_verified: bool, // If the server has the bonding key for this Flic button, this value is true. That means you should be able to connect to it.
-    already_connected_to_this_device: bool, // This Flic 2 button is already connected to this device.
-    already_connected_to_other_device: bool, // This Flic 2 button is already connected to another device.
+    pub name: String,
+    pub rssi: i8, // Signal strength in dBm, between -126 and 20, where -127 is weakest and 20 is strongest. -127 means not available.
+    pub is_private: bool, // The Flic button is currently in private mode and won't accept connections from unbonded clients. Hold it down for 7 seconds while not attempting to connect to it to make it public. First then you may connect.
+    pub already_verified: bool, // If the server has the bonding key for this Flic button, this value is true. That means you should be able to connect to it.
+    pub already_connected_to_this_device: bool, // This Flic 2 button is already connected to this device.
+    pub already_connected_to_other_device: bool, // This Flic 2 button is already connected to another device.
 }
 
 fn unmarshal_advertisement_packet(data: &[u8]) -> Result<Event> {
@@ -228,9 +228,9 @@ fn unmarshal_advertisement_packet(data: &[u8]) -> Result<Event> {
 // Opcode: 1
 #[derive(Debug, PartialEq)]
 pub struct CreateConnectionChannelResponse {
-    conn_id: u32,                        // Connection channel identifier.
-    error: CreateConnectionChannelError, // Whether the request succeeded or not.
-    connection_status: ConnectionStatus, // The current connection status to this button. This might be a non-disconnected status if there are already other active connection channels to this button.
+    pub conn_id: u32,                        // Connection channel identifier.
+    pub error: CreateConnectionChannelError, // Whether the request succeeded or not.
+    pub connection_status: ConnectionStatus, // The current connection status to this button. This might be a non-disconnected status if there are already other active connection channels to this button.
 }
 
 fn unmarshal_create_connection_channel_response(data: &[u8]) -> Result<Event> {
@@ -269,9 +269,9 @@ fn unmarshal_create_connection_channel_response(data: &[u8]) -> Result<Event> {
 // Opcode: 2
 #[derive(Debug, PartialEq)]
 pub struct ConnectionStatusChanged {
-    conn_id: u32,                        // Connection channel identifier.
-    connection_status: ConnectionStatus, // New connection status.
-    disconnect_reason: DisconnectReason, // If the connection status is Disconnected, this contains the reason. Otherwise this parameter is considered invalid.
+    pub conn_id: u32,                        // Connection channel identifier.
+    pub connection_status: ConnectionStatus, // New connection status.
+    pub disconnect_reason: DisconnectReason, // If the connection status is Disconnected, this contains the reason. Otherwise this parameter is considered invalid.
 }
 
 fn unmarshal_connection_status_changed(data: &[u8]) -> Result<Event> {
@@ -314,8 +314,8 @@ fn unmarshal_connection_status_changed(data: &[u8]) -> Result<Event> {
 // Opcode: 3
 #[derive(Debug, PartialEq)]
 pub struct ConnectionChannelRemoved {
-    conn_id: u32,                  // Connection channel identifier.
-    removed_reason: RemovedReason, // Reason for this connection channel being removed.
+    pub conn_id: u32,                  // Connection channel identifier.
+    pub removed_reason: RemovedReason, // Reason for this connection channel being removed.
 }
 
 fn unmarshal_connection_channel_removed(data: &[u8]) -> Result<Event> {
@@ -376,10 +376,10 @@ fn unmarshal_base_button_event(data: &[u8]) -> Result<BaseButtonEvent> {
 // Opcode: 4
 #[derive(Debug, PartialEq)]
 pub struct ButtonUpOrDown {
-    conn_id: u32,          // Connection channel identifier.
-    click_type: ClickType, // The click type. For each opcode, there are different possible values.
-    was_queued: bool, // If this button event happened during the button was disconnected or not.
-    time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+    pub conn_id: u32,          // Connection channel identifier.
+    pub click_type: ClickType, // The click type. For each opcode, there are different possible values.
+    pub was_queued: bool, // If this button event happened during the button was disconnected or not.
+    pub time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
 }
 
 fn unmarshal_button_up_or_down(data: &[u8]) -> Result<Event> {
@@ -408,10 +408,10 @@ fn unmarshal_button_up_or_down(data: &[u8]) -> Result<Event> {
 // Opcode: 5
 #[derive(Debug, PartialEq)]
 pub struct ButtonClickOrHold {
-    conn_id: u32,          // Connection channel identifier.
-    click_type: ClickType, // The click type. For each opcode, there are different possible values.
-    was_queued: bool, // If this button event happened during the button was disconnected or not.
-    time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+    pub conn_id: u32,          // Connection channel identifier.
+    pub click_type: ClickType, // The click type. For each opcode, there are different possible values.
+    pub was_queued: bool, // If this button event happened during the button was disconnected or not.
+    pub time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
 }
 
 fn unmarshal_button_click_or_hold(data: &[u8]) -> Result<Event> {
@@ -440,10 +440,10 @@ fn unmarshal_button_click_or_hold(data: &[u8]) -> Result<Event> {
 // Opcode: 6
 #[derive(Debug, PartialEq)]
 pub struct ButtonSingleOrDoubleClick {
-    conn_id: u32,          // Connection channel identifier.
-    click_type: ClickType, // The click type. For each opcode, there are different possible values.
-    was_queued: bool, // If this button event happened during the button was disconnected or not.
-    time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+    pub conn_id: u32,          // Connection channel identifier.
+    pub click_type: ClickType, // The click type. For each opcode, there are different possible values.
+    pub was_queued: bool, // If this button event happened during the button was disconnected or not.
+    pub time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
 }
 
 fn unmarshal_button_single_or_double_click(data: &[u8]) -> Result<Event> {
@@ -474,10 +474,10 @@ fn unmarshal_button_single_or_double_click(data: &[u8]) -> Result<Event> {
 // Opcode: 7
 #[derive(Debug, PartialEq)]
 pub struct ButtonSingleOrDoubleClickOrHold {
-    conn_id: u32,          // Connection channel identifier.
-    click_type: ClickType, // The click type. For each opcode, there are different possible values.
-    was_queued: bool, // If this button event happened during the button was disconnected or not.
-    time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
+    pub conn_id: u32,          // Connection channel identifier.
+    pub click_type: ClickType, // The click type. For each opcode, there are different possible values.
+    pub was_queued: bool, // If this button event happened during the button was disconnected or not.
+    pub time_diff: u32, // If this button event happened during the button was disconnected, this will be the number of seconds since that event happened (otherwise it will most likely be 0). Depending on your application, you might want to discard too old events.
 }
 
 fn unmarshal_button_single_or_double_click_or_hold(data: &[u8]) -> Result<Event> {
@@ -509,7 +509,7 @@ fn unmarshal_button_single_or_double_click_or_hold(data: &[u8]) -> Result<Event>
 // Opcode: 8
 #[derive(Debug, PartialEq)]
 pub struct NewVerifiedButton {
-    bd_addr: BdAddr, // The bluetooth address for the verified Flic button.
+    pub bd_addr: BdAddr, // The bluetooth address for the verified Flic button.
 }
 
 fn unmarshal_new_verified_button(data: &[u8]) -> Result<Event> {
@@ -526,15 +526,15 @@ fn unmarshal_new_verified_button(data: &[u8]) -> Result<Event> {
 // Opcode: 9
 #[derive(Debug, PartialEq)]
 pub struct GetInfoResponse {
-    bluetooth_controller_state: BluetoothControllerState, // Current state of the HCI connection to the bluetooth controller.
-    my_bd_addr: BdAddr, // Current bluetooth address / identity of this device.
-    my_bd_addr_type: BdAddrType, // Current bluetooth address type of this device.
-    max_pending_connections: u8, // The max number of Flic buttons that can be monitored at the same time, regardless of having an established connection or not.
-    max_concurrently_connected_buttons: i16, // The max number of Flic buttons that can have an established bluetooth connection at the same time. If this amount is reached, no other pending connection will succeed until another one has disconnected. This value will be -1 until the value becomes known. It becomes known first when the maximum number of connections is currently established and there is an attempt to establish yet another connection. Not all bluetooth controllers handle this correctly; some simply hides the fact that the maximum is reached and further connections won't succeed successfully, until a previously established connection is disconnected. Note: For some bluetooth controllers we have tested we have already hardcoded the correct value and this parameter will thus not be -1 but the correct one.
-    current_pending_connections: u8, // Current number of Flic buttons that are monitored by the server, among all clients.
-    currently_no_space_for_new_connection: bool, // The maximum number of concurrently connected buttons has been reached.
-    nb_verified_buttons: u16, // Number of verified buttons for this my_bd_addr/my_bd_addr_type pair.
-    bd_addr_of_verified_buttons: Vec<BdAddr>, // An array of all the verified buttons.
+    pub bluetooth_controller_state: BluetoothControllerState, // Current state of the HCI connection to the bluetooth controller.
+    pub my_bd_addr: BdAddr, // Current bluetooth address / identity of this device.
+    pub my_bd_addr_type: BdAddrType, // Current bluetooth address type of this device.
+    pub max_pending_connections: u8, // The max number of Flic buttons that can be monitored at the same time, regardless of having an established connection or not.
+    pub max_concurrently_connected_buttons: i16, // The max number of Flic buttons that can have an established bluetooth connection at the same time. If this amount is reached, no other pending connection will succeed until another one has disconnected. This value will be -1 until the value becomes known. It becomes known first when the maximum number of connections is currently established and there is an attempt to establish yet another connection. Not all bluetooth controllers handle this correctly; some simply hides the fact that the maximum is reached and further connections won't succeed successfully, until a previously established connection is disconnected. Note: For some bluetooth controllers we have tested we have already hardcoded the correct value and this parameter will thus not be -1 but the correct one.
+    pub current_pending_connections: u8, // Current number of Flic buttons that are monitored by the server, among all clients.
+    pub currently_no_space_for_new_connection: bool, // The maximum number of concurrently connected buttons has been reached.
+    pub nb_verified_buttons: u16, // Number of verified buttons for this my_bd_addr/my_bd_addr_type pair.
+    pub bd_addr_of_verified_buttons: Vec<BdAddr>, // An array of all the verified buttons.
 }
 
 fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
@@ -595,7 +595,7 @@ fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
 // Opcode: 10
 #[derive(Debug, PartialEq)]
 pub struct NoSpaceForNewConnection {
-    max_concurrently_connected_buttons: u8, // Same as in EvtGetInfoResponse.
+    pub max_concurrently_connected_buttons: u8, // Same as in EvtGetInfoResponse.
 }
 
 fn unmarshal_no_space_for_new_connection(data: &[u8]) -> Result<Event> {
@@ -615,7 +615,7 @@ fn unmarshal_no_space_for_new_connection(data: &[u8]) -> Result<Event> {
 // Opcode: 11
 #[derive(Debug, PartialEq)]
 pub struct GotSpaceForNewConnection {
-    max_concurrently_connected_buttons: u8, // Same as in EvtGetInfoResponse.
+    pub max_concurrently_connected_buttons: u8, // Same as in EvtGetInfoResponse.
 }
 
 fn unmarshal_got_space_for_new_connection(data: &[u8]) -> Result<Event> {
@@ -640,7 +640,7 @@ fn unmarshal_got_space_for_new_connection(data: &[u8]) -> Result<Event> {
 // Opcode: 12
 #[derive(Debug, PartialEq)]
 pub struct BluetoothControllerStateChange {
-    state: BluetoothControllerState, // The new state.
+    pub state: BluetoothControllerState, // The new state.
 }
 
 fn unmarshal_bluetooth_controller_state_change(data: &[u8]) -> Result<Event> {
@@ -665,7 +665,7 @@ fn unmarshal_bluetooth_controller_state_change(data: &[u8]) -> Result<Event> {
 // Opcode: 13
 #[derive(Debug, PartialEq)]
 pub struct PingResponse {
-    ping_id: u32, // Same ping id as sent in the CmdPing.
+    pub ping_id: u32, // Same ping id as sent in the CmdPing.
 }
 
 fn unmarshal_ping_response(data: &[u8]) -> Result<Event> {
@@ -683,18 +683,18 @@ fn unmarshal_ping_response(data: &[u8]) -> Result<Event> {
 // Opcode: 14
 #[derive(Debug, PartialEq)]
 pub struct GetButtonInfoResponse {
-    bd_addr: BdAddr, // The bluetooth device address of the request.
-    uuid: [u8; 16],  // The uuid of the button. Each button has a unique 128-bit identifier.
+    pub bd_addr: BdAddr, // The bluetooth device address of the request.
+    pub uuid: [u8; 16],  // The uuid of the button. Each button has a unique 128-bit identifier.
 
     // Next two fields aren't copied directly.
     // color_length: u8, // The length in bytes of the color following.
     // color: [u8; 16], // The first color_length bytes of this array contain the UTF-8 encoding of the color. The other bytes will be zeros. Currently the following strings are defined: black, white, turquoise, green and yellow but more colors may be added later, so don't expect these are the only possible values.
-    color: String,
+    pub color: String,
 
     // Next two fields aren't copied directly.
     // serial_number_length: u8, // The length in bytes of the serial number following.
     // serial_number: [u8; 16], // The serial number of the button, in UTF-8 encoding. Only the first serial_number_length bytes are used. The other bytes will be zeros.
-    serial_number: String,
+    pub serial_number: String,
 }
 
 fn unmarshal_get_button_info_response(data: &[u8]) -> Result<Event> {
@@ -719,7 +719,7 @@ fn unmarshal_get_button_info_response(data: &[u8]) -> Result<Event> {
 // Opcode: 15
 #[derive(Debug, PartialEq)]
 pub struct ScanWizardFoundPrivateButton {
-    scan_wizard_id: u32, // Scan wizard id.
+    pub scan_wizard_id: u32, // Scan wizard id.
 }
 
 fn unmarshal_scan_wizard_found_private_button(data: &[u8]) -> Result<Event> {
@@ -737,13 +737,13 @@ fn unmarshal_scan_wizard_found_private_button(data: &[u8]) -> Result<Event> {
 // Opcode: 16
 #[derive(Debug, PartialEq)]
 pub struct ScanWizardFoundPublicButton {
-    scan_wizard_id: u32, // Scan wizard id.
-    bd_addr: BdAddr,     // The bluetooth address of the Flic button that was found.
+    pub scan_wizard_id: u32, // Scan wizard id.
+    pub bd_addr: BdAddr,     // The bluetooth address of the Flic button that was found.
 
     // Next two fields aren't copied directly.
     // name_length: u8,     // The length in bytes of the name following.
     // name: [u8; 16], // The first name_length bytes of this array contain the UTF-8 encoding of the advertised name. The other bytes will be zeros.
-    name: String,
+    pub name: String,
 }
 
 fn unmarshal_scan_wizard_found_public_button(data: &[u8]) -> Result<Event> {
@@ -765,7 +765,7 @@ fn unmarshal_scan_wizard_found_public_button(data: &[u8]) -> Result<Event> {
 // Opcode: 17
 #[derive(Debug, PartialEq)]
 pub struct ScanWizardButtonConnected {
-    scan_wizard_id: u32, // Scan wizard id.
+    pub scan_wizard_id: u32, // Scan wizard id.
 }
 
 fn unmarshal_scan_wizard_button_connected(data: &[u8]) -> Result<Event> {
@@ -783,8 +783,8 @@ fn unmarshal_scan_wizard_button_connected(data: &[u8]) -> Result<Event> {
 // Opcode: 18
 #[derive(Debug, PartialEq)]
 pub struct ScanWizardCompleted {
-    scan_wizard_id: u32,      // Scan wizard id.
-    result: ScanWizardResult, // Result of the scan wizard.
+    pub scan_wizard_id: u32,      // Scan wizard id.
+    pub result: ScanWizardResult, // Result of the scan wizard.
 }
 
 fn unmarshal_scan_wizard_completed(data: &[u8]) -> Result<Event> {
@@ -813,8 +813,8 @@ fn unmarshal_scan_wizard_completed(data: &[u8]) -> Result<Event> {
 // Opcode: 19
 #[derive(Debug, PartialEq)]
 pub struct ButtonDeleted {
-    bd_addr: BdAddr,              // The bluetooth device address of the deleted button.
-    deleted_by_this_client: bool, // Whether or not the client that initiated the deletion was the current client.
+    pub bd_addr: BdAddr, // The bluetooth device address of the deleted button.
+    pub deleted_by_this_client: bool, // Whether or not the client that initiated the deletion was the current client.
 }
 
 fn unmarshal_button_deleted(data: &[u8]) -> Result<Event> {
@@ -833,10 +833,10 @@ fn unmarshal_button_deleted(data: &[u8]) -> Result<Event> {
 // Opcode: 20
 #[derive(Debug, PartialEq)]
 pub struct BatteryStatus {
-    listener_id: u32,       // Listener identifier.
-    battery_percentage: i8, // A value between 0 and 100 that indicates the current battery status. The value can also be -1 if unknown.
+    pub listener_id: u32,       // Listener identifier.
+    pub battery_percentage: i8, // A value between 0 and 100 that indicates the current battery status. The value can also be -1 if unknown.
     // TODO: Maybe convert this into some sort of native Rust time type.
-    timestamp: i64, // UNIX timestamp (time in seconds since 1970-01-01T00:00:00Z, excluding leap seconds).
+    pub timestamp: i64, // UNIX timestamp (time in seconds since 1970-01-01T00:00:00Z, excluding leap seconds).
 }
 
 fn unmarshal_battery_status(data: &[u8]) -> Result<Event> {

@@ -12,6 +12,12 @@ pub enum FlicError {
     Generic(String),
 }
 
+impl FlicError {
+    pub fn from<T: error::Error>(desc: &str, err: T) -> FlicError {
+        FlicError::Generic(String::from(format!("{}: {}", desc, err)))
+    }
+}
+
 impl fmt::Display for FlicError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
