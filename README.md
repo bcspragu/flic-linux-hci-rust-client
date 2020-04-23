@@ -12,13 +12,13 @@ comments are welcome!
 ## TODO
 
 - [ ] Update comments to make decent-looking rustdoc output
-- [ ] Add tests for remaining events and stuff
 - [ ] Build out the binary to be a full-featured FlicHub replacement
   - [ ] Support pairing buttons
   - [ ] Have persistence of some kind
   - [ ] Support things happening when buttons are clicked
 - [ ] Add integration tests that download the flicd binary from master or a
       known release and run the binary against them.
+- [x] Add tests for remaining events and stuff
 - [x] Make `bd_addr` a real type
 - [x] Actually try it out (use it in a binary)
 - [x] Fix the current model of TcpStream communication. Basically, commands

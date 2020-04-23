@@ -3,9 +3,9 @@
 
 use crate::enums::*;
 use crate::error::{FlicError, UnmarshalError};
-use crate::BdAddr;
-use crate::Result;
+use crate::{BdAddr, Result, Uuid};
 use num::FromPrimitive;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(FromPrimitive, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Opcode {
@@ -130,8 +130,8 @@ fn load_i16(data: &[u8], o: usize) -> i16 {
     i16::from_le_bytes([data[o], data[o + 1]])
 }
 
-fn load_i64(data: &[u8], o: usize) -> i64 {
-    i64::from_le_bytes([
+fn load_timestamp(data: &[u8], o: usize) -> Result<SystemTime> {
+    let secs_since_epoch = i64::from_le_bytes([
         data[o],
         data[o + 1],
         data[o + 2],
@@ -140,7 +140,15 @@ fn load_i64(data: &[u8], o: usize) -> i64 {
         data[o + 5],
         data[o + 6],
         data[o + 7],
-    ])
+    ]);
+
+    if secs_since_epoch > 0 {
+        return Ok(UNIX_EPOCH + Duration::from_secs(secs_since_epoch as u64));
+    }
+
+    return Err(FlicError::Unmarshal(UnmarshalError::BadTimestamp(
+        secs_since_epoch,
+    )));
 }
 
 fn load_string(data: &[u8], o: usize, sz: usize) -> Result<String> {
@@ -162,8 +170,8 @@ fn load_bd_addr(data: &[u8], o: usize) -> BdAddr {
     ])
 }
 
-fn load_uuid(data: &[u8], o: usize) -> [u8; 16] {
-    [
+fn load_uuid(data: &[u8], o: usize) -> Uuid {
+    Uuid([
         data[o],
         data[o + 1],
         data[o + 2],
@@ -180,7 +188,7 @@ fn load_uuid(data: &[u8], o: usize) -> [u8; 16] {
         data[o + 13],
         data[o + 14],
         data[o + 15],
-    ]
+    ])
 }
 
 // For each scanner the client has created, this packet will be sent for each bluetooth
@@ -570,7 +578,7 @@ fn unmarshal_get_info_response(data: &[u8]) -> Result<Event> {
     let mut bd_addr_of_verified_buttons = Vec::with_capacity(nb_verified_buttons);
 
     for i in 0..nb_verified_buttons {
-        bd_addr_of_verified_buttons[i] = load_bd_addr(data, 15 + i * 6);
+        bd_addr_of_verified_buttons.push(load_bd_addr(data, 15 + i * 6));
     }
 
     let evt = GetInfoResponse {
@@ -684,7 +692,7 @@ fn unmarshal_ping_response(data: &[u8]) -> Result<Event> {
 #[derive(Debug, PartialEq)]
 pub struct GetButtonInfoResponse {
     pub bd_addr: BdAddr, // The bluetooth device address of the request.
-    pub uuid: [u8; 16],  // The uuid of the button. Each button has a unique 128-bit identifier.
+    pub uuid: Uuid,      // The uuid of the button. Each button has a unique 128-bit identifier.
 
     // Next two fields aren't copied directly.
     // color_length: u8, // The length in bytes of the color following.
@@ -702,7 +710,7 @@ fn unmarshal_get_button_info_response(data: &[u8]) -> Result<Event> {
 
     let color_len = data[22] as usize;
 
-    let serial_number_len = data[38] as usize;
+    let serial_number_len = data[39] as usize;
 
     let evt = GetButtonInfoResponse {
         bd_addr: load_bd_addr(data, 0),
@@ -835,8 +843,7 @@ fn unmarshal_button_deleted(data: &[u8]) -> Result<Event> {
 pub struct BatteryStatus {
     pub listener_id: u32,       // Listener identifier.
     pub battery_percentage: i8, // A value between 0 and 100 that indicates the current battery status. The value can also be -1 if unknown.
-    // TODO: Maybe convert this into some sort of native Rust time type.
-    pub timestamp: i64, // UNIX timestamp (time in seconds since 1970-01-01T00:00:00Z, excluding leap seconds).
+    pub timestamp: SystemTime,  // When the battery status was recorded.
 }
 
 fn unmarshal_battery_status(data: &[u8]) -> Result<Event> {
@@ -845,7 +852,7 @@ fn unmarshal_battery_status(data: &[u8]) -> Result<Event> {
     let evt = BatteryStatus {
         listener_id: load_u32(data, 0),
         battery_percentage: data[4] as i8,
-        timestamp: load_i64(data, 5),
+        timestamp: load_timestamp(data, 5)?,
     };
 
     Ok(Event::BatteryStatus(evt))
@@ -854,6 +861,14 @@ fn unmarshal_battery_status(data: &[u8]) -> Result<Event> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic(expected = "BadOpcode")]
+    fn unrecognized_opcode_fails() {
+        // An invalid opcode (0x15) and some random bytes.
+        let data = vec![0x15, 0x78, 0x56, 0x34, 0x12];
+        unmarshal(&data).expect("failed to unmarshal data");
+    }
 
     macro_rules! unmarshal_tests {
         ($($name:ident: $value:expr,)*) => {
@@ -1000,110 +1015,158 @@ mod tests {
                 bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
             })
             ),
-            /*
-        TODO: Fill out and uncomment the rest of these tests.
         unmarshal_get_info_response: (
-            &vec![],
+            &vec![
+                0x09, // opcode
+                0x02, // bluetooth_controller_state
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // my_bd_addr
+                0x01, // my_bd_addr_type
+                0x0F, // max_pending_connections
+                0xFF, 0x00, // max_concurrently_connected_buttons
+                0x02, // currently_pending_connections
+                0x01, // currently_no_space_for_new_connection
+                0x04, 0x00, // nb_verified_buttons
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // bd_addr_of_verified_buttons[0]
+                0x02, 0x04, 0x04, 0x05, 0x06, 0x07, // bd_addr_of_verified_buttons[1]
+                0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // bd_addr_of_verified_buttons[2]
+                0x04, 0x05, 0x06, 0x07, 0x08, 0x09, // bd_addr_of_verified_buttons[3]
+            ],
             Event::GetInfoResponse(GetInfoResponse{
-                bluetooth_controller_state: BluetoothControllerState,
-                my_bd_addr: BdAddr,
-                my_bd_addr_type: BdAddrType,
-                max_pending_connections: u8,
-                max_concurrently_connected_buttons: i16,
-                current_pending_connections: u8,
-                currently_no_space_for_new_connection: bool,
-                nb_verified_buttons: u16,
-                bd_addr_of_verified_buttons: Vec<BdAddr>,
+                bluetooth_controller_state: BluetoothControllerState::Attached,
+                my_bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
+                my_bd_addr_type: BdAddrType::RandomBdAddrType,
+                max_pending_connections: 15,
+                max_concurrently_connected_buttons: 255,
+                current_pending_connections: 2,
+                currently_no_space_for_new_connection: true,
+                nb_verified_buttons: 4,
+                bd_addr_of_verified_buttons: vec![
+                    BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
+                    BdAddr([0x02, 0x04, 0x04, 0x05, 0x06, 0x07]),
+                    BdAddr([0x03, 0x04, 0x05, 0x06, 0x07, 0x08]),
+                    BdAddr([0x04, 0x05, 0x06, 0x07, 0x08, 0x09]),
+                ],
             })
             ),
         unmarshal_no_space_for_new_connection: (
-            &vec![],
+            &vec![
+                0x0A, // opcode
+                0x10, // max_concurrently_connected_buttons
+            ],
             Event::NoSpaceForNewConnection(NoSpaceForNewConnection{
-                max_concurrently_connected_buttons: u8,
+                max_concurrently_connected_buttons: 16,
             })
             ),
         unmarshal_got_space_for_new_connection: (
-            &vec![],
+            &vec![
+                0x0B, // opcode
+                0x11, // max_concurrently_connected_buttons
+            ],
             Event::GotSpaceForNewConnection(GotSpaceForNewConnection{
-                max_concurrently_connected_buttons: u8,
+                max_concurrently_connected_buttons: 17,
             })
             ),
         unmarshal_bluetooth_controller_state_change: (
-            &vec![],
+            &vec![
+                0x0C, // opcode
+                0x01, // state
+            ],
             Event::BluetoothControllerStateChange(BluetoothControllerStateChange{
-                state: BluetoothControllerState,
+                state: BluetoothControllerState::Resetting,
             })
             ),
         unmarshal_ping_response: (
-            &vec![],
+            &vec![
+                0x0D, // opcode
+                0x78, 0x56, 0x34, 0x12, // ping_id
+            ],
             Event::PingResponse(PingResponse{
-                ping_id: u32,
+                ping_id: 0x12345678,
             })
             ),
         unmarshal_get_button_info_response: (
-            &vec![],
+            &vec![
+                0x0E, // opcode
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // bd_addr
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, // uuid
+                0x09, // color_length
+                0x54, 0x68, 0x65, 0x20, 0x43, 0x6F, 0x6C, 0x6F, 0x72, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // color
+                0x0A, // serial_number_length
+                0x54, 0x68, 0x65, 0x20, 0x53, 0x65, 0x72, 0x69, 0x61, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // serial_number
+            ],
             Event::GetButtonInfoResponse(GetButtonInfoResponse{
-                bd_addr: BdAddr,
-                uuid: [u8; 16],
-
-                // Next two fields aren't copied directly.
-                // color_length: u8,
-                // color: [u8; 16],
-                color: String,
-
-                // Next two fields aren't copied directly.
-                // serial_number_length: u8,
-                // serial_number: [u8; 16],
-                serial_number: String,
+                bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
+                uuid: Uuid([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10]),
+                color: String::from("The Color"),
+                serial_number: String::from("The Serial"),
             })
             ),
         unmarshal_scan_wizard_found_private_button: (
-            &vec![],
+            &vec![
+                0x0F, // opcode
+                0x78, 0x56, 0x34, 0x12, // scan_wizard_id
+            ],
             Event::ScanWizardFoundPrivateButton(ScanWizardFoundPrivateButton{
-                scan_wizard_id: u32,
+                scan_wizard_id: 0x12345678,
             })
             ),
         unmarshal_scan_wizard_found_public_button: (
-            &vec![],
+            &vec![
+                0x10, // opcode
+                0x78, 0x56, 0x34, 0x12, // scan_wizard_id
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // bd_addr
+                0x08, // name_length
+                0x54, 0x68, 0x65, 0x20, 0x4E, 0x61, 0x6D, 0x65, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // name
+            ],
             Event::ScanWizardFoundPublicButton(ScanWizardFoundPublicButton{
-                scan_wizard_id: u32,
-                bd_addr: BdAddr,
-
-                // Next two fields aren't copied directly.
-                // name_length: u8,
-                // name: [u8; 16],
-                name: String,
+                scan_wizard_id: 0x12345678,
+                bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
+                name: String::from("The Name"),
             })
             ),
         unmarshal_scan_wizard_button_connected: (
-            &vec![],
+            &vec![
+                0x11, // opcode
+                0x78, 0x56, 0x34, 0x12, // scan_wizard_id
+            ],
             Event::ScanWizardButtonConnected(ScanWizardButtonConnected{
-                scan_wizard_id: u32, // Scan wizard id.
+                scan_wizard_id: 0x12345678,
             })
             ),
         unmarshal_scan_wizard_completed: (
-            &vec![],
+            &vec![
+                0x12, // opcode
+                0x78, 0x56, 0x34, 0x12, // scan_wizard_id
+                0x03, // result
+            ],
             Event::ScanWizardCompleted(ScanWizardCompleted{
-                scan_wizard_id: u32,
-                result: ScanWizardResult,
+                scan_wizard_id: 0x12345678,
+                result: ScanWizardResult::WizardButtonIsPrivate,
             })
             ),
         unmarshal_button_deleted: (
-            &vec![],
+            &vec![
+                0x13, // opcode
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // bd_addr
+                0x01, // deleted_by_this_client
+            ],
             Event::ButtonDeleted(ButtonDeleted{
-                bd_addr: BdAddr,
-                deleted_by_this_client: bool,
+                bd_addr: BdAddr([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
+                deleted_by_this_client: true,
             })
             ),
         unmarshal_battery_status: (
-            &vec![],
+            &vec![
+                0x14, // opcode
+                0x78, 0x56, 0x34, 0x12, // listener_id
+                0x60, // battery_percentage
+                0xA6, 0xAE, 0xA1, 0x5E, 0x00, 0x00, 0x00, 0x00, // timestamp
+            ],
             Event::BatteryStatus(BatteryStatus{
-                listener_id: u32,
-                battery_percentage: i8,
-                // TODO: Maybe convert this into some sort of native Rust time type.
-                timestamp: i64,
+                listener_id: 0x12345678,
+                battery_percentage: 96,
+                timestamp: UNIX_EPOCH + Duration::from_secs(1587654310),
             })
             ),
-        */
     }
 }

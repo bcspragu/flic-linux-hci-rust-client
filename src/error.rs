@@ -64,6 +64,7 @@ pub enum UnmarshalError {
     BadEnum(u8, String),
     BadOpcode(u8),
     BadClickType(enums::ClickType, String),
+    BadTimestamp(i64),
 }
 
 impl fmt::Display for UnmarshalError {
@@ -85,6 +86,7 @@ impl fmt::Display for UnmarshalError {
             UnmarshalError::BadClickType(click_type, btn_evt) => {
                 write!(f, "click type {:?} not valid for {}", click_type, btn_evt)
             }
+            UnmarshalError::BadTimestamp(ts) => write!(f, "timestamp was invalid: {}", ts),
         }
     }
 }
